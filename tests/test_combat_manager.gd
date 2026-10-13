@@ -94,6 +94,10 @@ func _run_tests() -> void:
 
 	failures += _test_ultimate()
 	failures += _test_passive()
+	failures += _test_dead_combatant()
+	failures += _test_action_bar_limit()
+	failures += _test_skill_point_limit()
+	failures += _test_energy_limit()
 
 	if failures == 0:
 		print("TEST COMBAT MANAGER: TUTTI I TEST SUPERATI")
@@ -119,7 +123,7 @@ func _test_ultimate() -> int:
 	)
 
 	if bool(failed_result.get("success", false)):
-		failures += _fail("Rifiuto dell'Ultimate senza energia sufficiente")
+		failures += _fail("Rifiuto Ultimate senza energia sufficiente")
 
 	if manager.get_energy("hero_001") != 99:
 		failures += _fail("Energia conservata dopo Ultimate rifiutata")
@@ -139,16 +143,15 @@ func _test_ultimate() -> int:
 	)
 
 	if not bool(result.get("success", false)):
-		failures += _fail("Uso dell'Ultimate con energia sufficiente")
-	else:
-		if int(result.get("damage", 0)) != 42:
-			failures += _fail("Danno dell'Ultimate")
+		failures += _fail("Uso Ultimate con energia sufficiente")
+	elif int(result.get("damage", 0)) != 42:
+		failures += _fail("Danno dell'Ultimate")
 
 	if manager.get_energy("hero_001") != 0:
-		failures += _fail("Consumo dell'energia dell'Ultimate")
+		failures += _fail("Consumo energia Ultimate")
 
 	if int(manager.get_combatant("enemy_001")["hp"]) != 18:
-		failures += _fail("Punti vita dopo l'Ultimate")
+		failures += _fail("HP dopo Ultimate")
 
 	return failures
 
@@ -168,7 +171,86 @@ func _test_passive() -> int:
 	if not bool(result.get("success", false)):
 		failures += _fail("Attacco con passiva attiva")
 	elif int(result.get("damage", 0)) != 18:
-		failures += _fail("Bonus danno della passiva al 50% HP")
+		failures += _fail("Bonus passiva al 50% HP")
+
+	return failures
+
+
+func _test_dead_combatant() -> int:
+	var failures: int = 0
+	var manager = _create_manager()
+
+	manager.set_hp("enemy_001", 0)
+	manager.advance_time(10.0)
+
+	if bool(manager.get_combatant("enemy_001")["alive"]):
+		failures += _fail("Nemico sconfitto rimasto vivo")
+
+	for fighter in manager.get_ready_combatants():
+		if str(fighter["id"]) == "enemy_001":
+			failures += _fail("Nemico sconfitto non deve essere pronto")
+
+	return failures
+
+
+func _test_action_bar_limit() -> int:
+	var failures: int = 0
+	var manager = _create_manager()
+
+	manager.advance_time(100.0)
+
+	for fighter in manager.get_combatants():
+		if float(fighter["action_bar"]) > 100.0:
+			failures += _fail(
+				"Barra d'azione oltre il 100% per "
+				+ str(fighter["id"])
+			)
+
+	return failures
+
+
+func _test_skill_point_limit() -> int:
+	var failures: int = 0
+	var manager = _create_manager()
+
+	manager.restore_skill_points(100)
+
+	if manager.get_skill_points() != 5:
+		failures += _fail("Punti abilita oltre il massimo di 5")
+
+	manager.restore_skill_points(1)
+
+	if manager.get_skill_points() != 5:
+		failures += _fail("Punti abilita oltre il limite dopo recupero")
+
+	if manager.spend_skill_points(6):
+		failures += _fail("Spesa di punti abilita non disponibili")
+
+	if manager.get_skill_points() != 5:
+		failures += _fail("Punti abilita modificati da spesa rifiutata")
+
+	return failures
+
+
+func _test_energy_limit() -> int:
+	var failures: int = 0
+	var manager = _create_manager()
+
+	manager.add_energy("hero_001", 99)
+	manager.add_energy("hero_001", 10)
+
+	if manager.get_energy("hero_001") != 100:
+		failures += _fail("Energia oltre il massimo di 100")
+
+	manager.add_energy("hero_001", 1)
+
+	if manager.get_energy("hero_001") != 100:
+		failures += _fail("Energia oltre il limite dopo recupero")
+
+	manager.add_energy("eroe_inesistente", 50)
+
+	if manager.get_energy("hero_001") != 100:
+		failures += _fail("Energia modificata da ID inesistente")
 
 	return failures
 
