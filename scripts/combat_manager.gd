@@ -24,46 +24,40 @@ func _add_combatant(data: Dictionary, team: String) -> void:
 		"alive": true
 	})
 
+
 func get_next_turn() -> Dictionary:
-	while true:
-		var living_count := 0
+	if combatants.is_empty():
+		return {}
 
-		for fighter in combatants:
-			if fighter["alive"]:
-				living_count += 1
+	var selected_index := -1
+	var best_time: float = INF
 
-		if living_count == 0:
-			return {}
+	for i in range(combatants.size()):
+		var fighter: Dictionary = combatants[i]
 
-		var selected_index := -1
-		var best_time := INF
+		if not fighter["alive"]:
+			continue
 
-		for i in range(combatants.size()):
-			var fighter: Dictionary = combatants[i]
+		var remaining: float = ACTION_BAR_MAX - float(fighter["action_bar"])
+		var time_to_turn: float = remaining / float(fighter["speed"])
 
-			if not fighter["alive"]:
-				continue
+		if time_to_turn < best_time:
+			best_time = time_to_turn
+			selected_index = i
 
-			var remaining: float = ACTION_BAR_MAX - float(fighter["action_bar"])
-			var time_to_turn: float = remaining / float(fighter["speed"])
+	if selected_index == -1:
+		return {}
 
-			if time_to_turn < best_time:
-				best_time = time_to_turn
-				selected_index = i
+	for fighter in combatants:
+		if fighter["alive"]:
+			fighter["action_bar"] = minf(
+				ACTION_BAR_MAX,
+				float(fighter["action_bar"]) + float(fighter["speed"]) * best_time
+			)
 
-		if selected_index == -1:
-			return {}
-
-		for fighter in combatants:
-			if fighter["alive"]:
-				fighter["action_bar"] = minf(
-					ACTION_BAR_MAX,
-					float(fighter["action_bar"]) + float(fighter["speed"]) * best_time
-				)
-
-		var selected: Dictionary = combatants[selected_index]
-		selected["action_bar"] = 0.0
-		return selected
+	var selected: Dictionary = combatants[selected_index]
+	selected["action_bar"] = 0.0
+	return selected
 
 func set_hp(combatant_id: String, new_hp: int) -> void:
 	for fighter in combatants:
