@@ -390,11 +390,11 @@ func _update_action_bars() -> void:
 	if combat_manager == null:
 		return
 
-	var hero := combat_manager.get_combatant(active_hero_id)
+	var hero: Dictionary = combat_manager.get_combatant(active_hero_id)
 	if hero.is_empty():
 		hero = _get_first_alive_combatant("hero")
 
-	var enemy := combat_manager.get_combatant(active_enemy_id)
+	var enemy: Dictionary = combat_manager.get_combatant(active_enemy_id)
 	if enemy.is_empty():
 		enemy = _get_first_alive_combatant("enemy")
 
@@ -527,10 +527,6 @@ func _on_restart_pressed() -> void:
 		"font_color",
 		Color(0.8, 0.85, 0.95)
 	)
-
-	turn_label.text = "Le barre si stanno riempiendo..."
-	_update_ui()
-
 
 	turn_label.text = "Le barre si stanno riempiendo..."
 	_update_ui()
