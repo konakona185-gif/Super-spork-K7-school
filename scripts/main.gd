@@ -1,11 +1,11 @@
 
 extends Node3D
 
-const HERO_MAX_HP: int = 100
-const ENEMY_MAX_HP: int = 60
+var hero_data: Dictionary = {}
+var enemy_data: Dictionary = {}
 
-var hero_hp: int = HERO_MAX_HP
-var enemy_hp: int = ENEMY_MAX_HP
+var hero_hp: int = 0
+var enemy_hp: int = 0
 var battle_over: bool = false
 var rng := RandomNumberGenerator.new()
 
@@ -17,9 +17,89 @@ var enemy_mesh: MeshInstance3D
 
 func _ready() -> void:
 	rng.randomize()
+
+	if not _load_character_data():
+		_show_data_error()
+		return
+
+	hero_hp = int(hero_data["stats"]["hp"])
+	enemy_hp = int(enemy_data["stats"]["hp"])
+
 	_build_arena()
 	_build_ui()
 	_update_ui()
+
+func _load_character_data() -> bool:
+	var file_path := "res://data/characters.json"
+
+	if not FileAccess.file_exists(file_path):
+		push_error("File non trovato: " + file_path)
+		return false
+
+	var file := FileAccess.open(file_path, FileAccess.READ)
+	if file == null:
+		push_error("Impossibile aprire characters.json")
+		return false
+
+	var json := JSON.new()
+	var parse_result := json.parse(file.get_as_text())
+
+	if parse_result != OK:
+		push_error("Errore JSON: " + json.get_error_message())
+		return false
+
+	var content = json.data
+
+	if not content is Dictionary:
+		push_error("Il contenuto JSON deve essere un oggetto.")
+		return false
+
+	if not content.has("hero") or not content.has("enemy"):
+		push_error("Il JSON deve contenere hero ed enemy.")
+		return false
+
+	hero_data = content["hero"]
+	enemy_data = content["enemy"]
+
+	if not hero_data is Dictionary or not enemy_data is Dictionary:
+		push_error("Dati di hero o enemy non validi.")
+		return false
+
+	if not hero_data.has("stats") or not enemy_data.has("stats"):
+		push_error("Mancano le statistiche dei combattenti.")
+		return false
+
+	if not hero_data["stats"] is Dictionary or not enemy_data["stats"] is Dictionary:
+		push_error("Il campo stats deve essere un oggetto.")
+		return false
+
+	for key in ["hp", "attack_min", "attack_max"]:
+		if not hero_data["stats"].has(key) or not enemy_data["stats"].has(key):
+			push_error("Statistica mancante: " + key)
+			return false
+
+	if int(hero_data["stats"]["hp"]) <= 0 or int(enemy_data["stats"]["hp"]) <= 0:
+		push_error("Gli HP iniziali devono essere maggiori di zero.")
+		return false
+
+	if int(hero_data["stats"]["attack_min"]) > int(hero_data["stats"]["attack_max"]):
+		push_error("Intervallo di attacco dell'eroe non valido.")
+		return false
+
+	if int(enemy_data["stats"]["attack_min"]) > int(enemy_data["stats"]["attack_max"]):
+		push_error("Intervallo di attacco del nemico non valido.")
+		return false
+
+	return true
+
+func _show_data_error() -> void:
+	var layer := CanvasLayer.new()
+	add_child(layer)
+
+	var message := Label.new()
+	message.text = "Errore nei dati dei personaggi.\nControlla data/characters.json."
+	message.position = Vector2(20, 20)
+	layer.add_child(message)
 
 func _build_arena() -> void:
 	var floor_mesh := MeshInstance3D.new()
@@ -101,16 +181,19 @@ func _build_ui() -> void:
 	layout.add_child(restart_button)
 
 func _update_ui() -> void:
-	status_label.text = "EROE: %d / %d HP\nNEMICO: %d / %d HP" % [
-		hero_hp, HERO_MAX_HP, enemy_hp, ENEMY_MAX_HP
+	status_label.text = "%s: %d / %d HP\n%s: %d / %d HP" % [
+		str(hero_data["name"]),
+		hero_hp,
+		int(hero_data["stats"]["hp"]),
+		str(enemy_data["name"]),
+		enemy_hp,
+		int(enemy_data["stats"]["hp"])
 	]
 
 	if hero_hp <= 0:
 		status_label.text += "\n\nSCONFITTA!"
 	elif enemy_hp <= 0:
 		status_label.text += "\n\nVITTORIA!"
-	elif battle_over:
-		status_label.text += "\n\nBattaglia terminata."
 
 	attack_button.visible = not battle_over
 	restart_button.visible = battle_over
@@ -119,7 +202,13 @@ func _on_attack_pressed() -> void:
 	if battle_over:
 		return
 
-	var hero_damage := rng.randi_range(12, 20)
+	var hero_stats: Dictionary = hero_data["stats"]
+	var enemy_stats: Dictionary = enemy_data["stats"]
+
+	var hero_damage := rng.randi_range(
+		int(hero_stats["attack_min"]),
+		int(hero_stats["attack_max"])
+	)
 	enemy_hp = max(0, enemy_hp - hero_damage)
 
 	if enemy_hp <= 0:
@@ -127,7 +216,10 @@ func _on_attack_pressed() -> void:
 		_update_ui()
 		return
 
-	var enemy_damage := rng.randi_range(5, 12)
+	var enemy_damage := rng.randi_range(
+		int(enemy_stats["attack_min"]),
+		int(enemy_stats["attack_max"])
+	)
 	hero_hp = max(0, hero_hp - enemy_damage)
 
 	if hero_hp <= 0:
@@ -136,7 +228,7 @@ func _on_attack_pressed() -> void:
 	_update_ui()
 
 func _on_restart_pressed() -> void:
-	hero_hp = HERO_MAX_HP
-	enemy_hp = ENEMY_MAX_HP
+	hero_hp = int(hero_data["stats"]["hp"])
+	enemy_hp = int(enemy_data["stats"]["hp"])
 	battle_over = false
 	_update_ui()
