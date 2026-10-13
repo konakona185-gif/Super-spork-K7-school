@@ -10,6 +10,7 @@ var waiting_for_hero_turn: bool = false
 var waiting_for_enemy_turn: bool = false
 var active_hero_id: String = ""
 var active_enemy_id: String = ""
+var selected_enemy_id: String = ""
 
 var pending_turns: Array[Dictionary] = []
 
@@ -19,6 +20,7 @@ var combat_manager
 var status_label: Label
 var turn_label: Label
 var turn_indicator_label: Label
+var target_option: OptionButton
 var attack_button: Button
 var restart_button: Button
 
@@ -71,7 +73,8 @@ func _process(delta: float) -> void:
 				"font_color",
 				Color(0.3, 0.85, 1.0)
 			)
-			turn_label.text = "%s è pronto. Scegli Attacca." % str(fighter["name"])
+			turn_label.text = "%s è pronto. Seleziona un nemico e attacca." % str(fighter["name"])
+			_refresh_target_options()
 			_update_ui()
 			return
 
@@ -188,6 +191,7 @@ func _reset_battle() -> void:
 	waiting_for_enemy_turn = false
 	active_hero_id = ""
 	active_enemy_id = ""
+	selected_enemy_id = ""
 	pending_turns.clear()
 
 	combat_manager = CombatManagerScript.new()
@@ -196,6 +200,9 @@ func _reset_battle() -> void:
 	if is_instance_valid(attack_button):
 		attack_button.text = "Attacca"
 		attack_button.disabled = true
+
+	if is_instance_valid(target_option):
+		_refresh_target_options()
 
 
 func _show_data_error() -> void:
@@ -263,7 +270,7 @@ func _build_ui() -> void:
 
 	var panel := PanelContainer.new()
 	panel.position = Vector2(20, 20)
-	panel.custom_minimum_size = Vector2(380, 0)
+	panel.custom_minimum_size = Vector2(420, 0)
 	layer.add_child(panel)
 
 	var layout := VBoxContainer.new()
@@ -310,6 +317,15 @@ func _build_ui() -> void:
 
 	layout.add_child(HSeparator.new())
 
+	var target_label := Label.new()
+	target_label.text = "BERSAGLIO"
+	layout.add_child(target_label)
+
+	target_option = OptionButton.new()
+	target_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	target_option.item_selected.connect(_on_target_selected)
+	layout.add_child(target_option)
+
 	turn_indicator_label = Label.new()
 	turn_indicator_label.text = "COMBATTIMENTO IN CORSO"
 	turn_indicator_label.add_theme_font_size_override("font_size", 18)
@@ -346,6 +362,7 @@ func _update_ui() -> void:
 
 	attack_button.visible = not battle_over
 	attack_button.disabled = not waiting_for_hero_turn
+	target_option.disabled = not waiting_for_hero_turn or _get_alive_count("enemy") == 0
 	restart_button.visible = battle_over
 
 	if battle_over:
@@ -425,6 +442,54 @@ func _update_action_bars() -> void:
 		)
 
 
+func _refresh_target_options() -> void:
+	if not is_instance_valid(target_option) or combat_manager == null:
+		return
+
+	target_option.clear()
+	var selected_index: int = -1
+	var index: int = 0
+
+	for fighter in combat_manager.get_combatants():
+		if str(fighter["team"]) != "enemy":
+			continue
+
+		if not bool(fighter["alive"]):
+			continue
+
+		target_option.add_item(
+			"%s (%d/%d HP)" % [
+				str(fighter["name"]),
+				int(fighter["hp"]),
+				int(fighter["max_hp"])
+			]
+		)
+		target_option.set_item_metadata(index, str(fighter["id"]))
+
+		if str(fighter["id"]) == selected_enemy_id:
+			selected_index = index
+
+		index += 1
+
+	if selected_index == -1 and target_option.item_count > 0:
+		selected_index = 0
+
+	if selected_index >= 0:
+		target_option.select(selected_index)
+		selected_enemy_id = str(target_option.get_item_metadata(selected_index))
+	else:
+		selected_enemy_id = ""
+
+	target_option.disabled = not waiting_for_hero_turn or target_option.item_count == 0
+
+
+func _on_target_selected(index: int) -> void:
+	if index < 0 or index >= target_option.item_count:
+		return
+
+	selected_enemy_id = str(target_option.get_item_metadata(index))
+
+
 func _get_first_alive_combatant(team: String) -> Dictionary:
 	for fighter in combat_manager.get_combatants():
 		if str(fighter["team"]) == team and bool(fighter["alive"]):
@@ -448,9 +513,15 @@ func _on_attack_pressed() -> void:
 		return
 
 	var hero: Dictionary = combat_manager.get_combatant(active_hero_id)
-	var enemy: Dictionary = _get_first_alive_combatant("enemy")
+	var enemy: Dictionary = combat_manager.get_combatant(selected_enemy_id)
 
 	if hero.is_empty() or enemy.is_empty():
+		turn_label.text = "Seleziona un bersaglio valido."
+		return
+
+	if not bool(hero["alive"]) or not bool(enemy["alive"]):
+		_refresh_target_options()
+		turn_label.text = "Il bersaglio non è più disponibile. Selezionane un altro."
 		return
 
 	var damage: int = maxi(1, int(hero["atk"]) - int(enemy["def"]))
@@ -472,6 +543,7 @@ func _on_attack_pressed() -> void:
 		pending_turns.clear()
 		turn_label.text += "\nTutti i nemici sono stati sconfitti!"
 	else:
+		_refresh_target_options()
 		turn_indicator_label.text = "COMBATTIMENTO IN CORSO"
 		turn_indicator_label.add_theme_color_override(
 			"font_color",
@@ -529,4 +601,5 @@ func _on_restart_pressed() -> void:
 	)
 
 	turn_label.text = "Le barre si stanno riempiendo..."
+	_refresh_target_options()
 	_update_ui()
