@@ -22,15 +22,13 @@ jobs:
           wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip
           unzip -q Godot_v4.4-stable_linux.x86_64.zip
           chmod +x Godot_v4.4-stable_linux.x86_64
-          echo "$PWD/Godot_v4.4-stable_linux.x86_64" >> "$GITHUB_PATH"
+          echo "GODOT_BIN=$PWD/Godot_v4.4-stable_linux.x86_64" >> "$GITHUB_ENV"
 
       - name: Controlla progetto e script
         shell: bash
         run: |
           set -o pipefail
-          godot_bin="$RUNNER_WORKSPACE/$GITHUB_REPOSITORY/Godot_v4.4-stable_linux.x86_64"
-
-          "$godot_bin" --headless --editor --path . --quit 2>&1 | tee godot-editor.log
+          "$GODOT_BIN" --headless --editor --path "$GITHUB_WORKSPACE" --quit 2>&1 | tee godot-editor.log
 
           if grep -E 'SCRIPT ERROR:|Parse Error:|ERROR:' godot-editor.log; then
             echo "Sono stati rilevati errori nel progetto."
@@ -41,9 +39,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          godot_bin="$RUNNER_WORKSPACE/$GITHUB_REPOSITORY/Godot_v4.4-stable_linux.x86_64"
-
-          "$godot_bin" --headless --path . --quit-after 3 2>&1 | tee godot-run.log
+          "$GODOT_BIN" --headless --path "$GITHUB_WORKSPACE" --quit-after 3 2>&1 | tee godot-run.log
 
           if grep -E 'SCRIPT ERROR:|Parse Error:|ERROR:' godot-run.log; then
             echo "La scena ha segnalato errori."
