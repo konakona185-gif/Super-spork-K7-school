@@ -46,28 +46,9 @@ func _process(delta: float) -> void:
 	if battle_over or waiting_for_hero_turn:
 		return
 
-	var combatants: Array[Dictionary] = combat_manager.get_combatants()
-
-	for fighter in combatants:
-		if not bool(fighter["alive"]):
-			continue
-
-		var current_bar: float = float(fighter["action_bar"])
-		var speed: float = float(fighter["speed"])
-
-		fighter["action_bar"] = minf(
-			100.0,
-			current_bar + speed * delta
-		)
+	var ready_fighter: Dictionary = combat_manager.advance_time(delta)
 
 	_update_action_bars()
-
-	var ready_fighter: Dictionary = {}
-
-	for fighter in combatants:
-		if bool(fighter["alive"]) and float(fighter["action_bar"]) >= 100.0:
-			ready_fighter = fighter
-			break
 
 	if ready_fighter.is_empty():
 		return
@@ -398,13 +379,14 @@ func _enemy_turn(_fighter: Dictionary) -> void:
 
 
 func _reset_action_bar(team: String) -> void:
-	for fighter in combat_manager.get_combatants():
-		if str(fighter["team"]) == team:
-			fighter["action_bar"] = 0.0
-			return
+	if team == "hero":
+		combat_manager.reset_action_bar(str(hero_data["id"]))
+	elif team == "enemy":
+		combat_manager.reset_action_bar(str(enemy_data["id"]))
 
 
 func _on_restart_pressed() -> void:
 	_reset_battle()
 	turn_label.text = "Le barre si stanno riempiendo..."
 	_update_ui()
+
