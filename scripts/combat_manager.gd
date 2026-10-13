@@ -27,41 +27,51 @@ func _add_combatant(data: Dictionary, team: String) -> void:
 	})
 
 
-func advance_time(delta: float) -> Dictionary:
-	if delta <= 0.0 or combatants.is_empty():
-		return {}
+func advance_time(delta: float) -> Array[Dictionary]:
+	if delta > 0.0:
+		for fighter in combatants:
+			if not bool(fighter["alive"]):
+				continue
+
+			var current_bar: float = float(fighter["action_bar"])
+			var speed: float = float(fighter["speed"])
+
+			fighter["action_bar"] = minf(
+				ACTION_BAR_MAX,
+				current_bar + speed * delta
+			)
+
+	return get_ready_combatants()
+
+
+func get_ready_combatants() -> Array[Dictionary]:
+	var ready: Array[Dictionary] = []
 
 	for fighter in combatants:
 		if not bool(fighter["alive"]):
 			continue
 
-		var current_bar: float = float(fighter["action_bar"])
-		var speed: float = float(fighter["speed"])
+		if float(fighter["action_bar"]) >= ACTION_BAR_MAX:
+			ready.append(fighter)
 
-		fighter["action_bar"] = minf(
-			ACTION_BAR_MAX,
-			current_bar + speed * delta
-		)
+	# Ordina per Velocità decrescente.
+	# In caso di parità, mantiene l'ordine originale.
+	for i in range(1, ready.size()):
+		var current: Dictionary = ready[i]
+		var j: int = i - 1
 
-	return get_next_ready_combatant()
+		while j >= 0:
+			var previous: Dictionary = ready[j]
 
+			if float(previous["speed"]) >= float(current["speed"]):
+				break
 
-func get_next_ready_combatant() -> Dictionary:
-	var ready_fighter: Dictionary = {}
+			ready[j + 1] = previous
+			j -= 1
 
-	for fighter in combatants:
-		if not bool(fighter["alive"]):
-			continue
+		ready[j + 1] = current
 
-		if float(fighter["action_bar"]) < ACTION_BAR_MAX:
-			continue
-
-		if ready_fighter.is_empty():
-			ready_fighter = fighter
-		elif float(fighter["action_bar"]) > float(ready_fighter["action_bar"]):
-			ready_fighter = fighter
-
-	return ready_fighter
+	return ready
 
 
 func reset_action_bar(combatant_id: String) -> void:
