@@ -12,6 +12,8 @@ var battle_over: bool = false
 var waiting_for_hero_turn: bool = false
 var waiting_for_enemy_turn: bool = false
 
+var pending_turns: Array[Dictionary] = []
+
 var rng := RandomNumberGenerator.new()
 var combat_manager
 
@@ -48,13 +50,22 @@ func _process(delta: float) -> void:
 	if battle_over or waiting_for_hero_turn or waiting_for_enemy_turn:
 		return
 
-	var ready_fighter: Dictionary = combat_manager.advance_time(delta)
+	# Avanza il tempo solo quando non ci sono turni già pronti.
+	if pending_turns.is_empty():
+		pending_turns = combat_manager.advance_time(delta)
+
 	_update_action_bars()
 
-	if ready_fighter.is_empty():
+	if pending_turns.is_empty():
 		return
 
-	if str(ready_fighter["team"]) == "hero":
+	# Prende il prossimo combattente senza perdere gli altri turni pronti.
+	var fighter: Dictionary = pending_turns.pop_front()
+
+	if not bool(fighter["alive"]):
+		return
+
+	if str(fighter["team"]) == "hero":
 		waiting_for_hero_turn = true
 		turn_indicator_label.text = "▶ TURNO DEL GIOCATORE"
 		turn_indicator_label.add_theme_color_override(
@@ -62,6 +73,7 @@ func _process(delta: float) -> void:
 			Color(0.3, 0.85, 1.0)
 		)
 		turn_label.text = "Il tuo personaggio è pronto. Scegli Attacca."
+		_update_ui()
 	else:
 		waiting_for_enemy_turn = true
 		turn_indicator_label.text = "▶ TURNO DEL NEMICO"
@@ -69,9 +81,7 @@ func _process(delta: float) -> void:
 			"font_color",
 			Color(1.0, 0.4, 0.3)
 		)
-		_enemy_turn(ready_fighter)
-
-	_update_ui()
+		_enemy_turn(fighter)
 
 
 func _load_character_data() -> bool:
@@ -155,6 +165,7 @@ func _reset_battle() -> void:
 	battle_over = false
 	waiting_for_hero_turn = false
 	waiting_for_enemy_turn = false
+	pending_turns.clear()
 
 	combat_manager = CombatManagerScript.new()
 	combat_manager.setup(hero_data, enemy_data)
@@ -397,6 +408,7 @@ func _on_attack_pressed() -> void:
 
 	if enemy_hp <= 0:
 		battle_over = true
+		pending_turns.clear()
 		turn_label.text += "\nIl nemico è stato sconfitto!"
 	else:
 		turn_indicator_label.text = "COMBATTIMENTO IN CORSO"
@@ -428,6 +440,7 @@ func _enemy_turn(fighter: Dictionary) -> void:
 
 	if hero_hp <= 0:
 		battle_over = true
+		pending_turns.clear()
 		turn_label.text += "\nIl tuo eroe è stato sconfitto!"
 	else:
 		turn_indicator_label.text = "COMBATTIMENTO IN CORSO"
@@ -450,3 +463,4 @@ func _on_restart_pressed() -> void:
 
 	turn_label.text = "Le barre si stanno riempiendo..."
 	_update_ui()
+
