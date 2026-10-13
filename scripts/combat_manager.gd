@@ -43,11 +43,25 @@ func advance_time(delta: float) -> Dictionary:
 			current_bar + speed * delta
 		)
 
-	for fighter in combatants:
-		if bool(fighter["alive"]) and float(fighter["action_bar"]) >= ACTION_BAR_MAX:
-			return fighter
+	return get_next_ready_combatant()
 
-	return {}
+
+func get_next_ready_combatant() -> Dictionary:
+	var ready_fighter: Dictionary = {}
+
+	for fighter in combatants:
+		if not bool(fighter["alive"]):
+			continue
+
+		if float(fighter["action_bar"]) < ACTION_BAR_MAX:
+			continue
+
+		if ready_fighter.is_empty():
+			ready_fighter = fighter
+		elif float(fighter["action_bar"]) > float(ready_fighter["action_bar"]):
+			ready_fighter = fighter
+
+	return ready_fighter
 
 
 func reset_action_bar(combatant_id: String) -> void:
