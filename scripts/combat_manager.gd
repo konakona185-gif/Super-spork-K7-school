@@ -331,3 +331,75 @@ func get_combatant(combatant_id: String) -> Dictionary:
 
 func get_combatants() -> Array[Dictionary]:
 	return combatants
+
+func use_damage_ability(
+	attacker_id: String,
+	target_id: String,
+	ability_type: String
+) -> Dictionary:
+	var attacker: Dictionary = get_combatant(attacker_id)
+	var target: Dictionary = get_combatant(target_id)
+
+	if attacker.is_empty() or target.is_empty():
+		return {"success": false, "message": "Combattente non trovato."}
+
+	if not bool(attacker["alive"]) or not bool(target["alive"]):
+		return {"success": false, "message": "Combattente sconfitto."}
+
+	if str(attacker["team"]) != "hero":
+		return {"success": false, "message": "Non è il turno di un alleato."}
+
+	if str(target["team"]) != "enemy":
+		return {"success": false, "message": "Bersaglio non valido."}
+
+	var selected_ability: Dictionary = {}
+
+	for ability in get_abilities_for_character(attacker_id):
+		if str(ability["type"]) == ability_type:
+			selected_ability = ability
+			break
+
+	if selected_ability.is_empty():
+		return {"success": false, "message": "Abilità non trovata."}
+
+	var point_cost: int = int(
+		selected_ability.get("skill_point_cost", 0)
+	)
+
+	if not can_spend_skill_points(point_cost):
+		return {"success": false, "message": "Punti Abilità insufficienti."}
+
+	if str(selected_ability.get("effect", "")) != "damage":
+		return {"success": false, "message": "Effetto non ancora supportato."}
+
+	if not spend_skill_points(point_cost):
+		return {"success": false, "message": "Impossibile spendere i punti."}
+
+	var power: float = float(selected_ability.get("power", 1.0))
+	var base_damage: float = maxf(
+		1.0,
+		float(attacker["atk"]) - float(target["def"])
+	)
+	var damage: int = maxi(1, roundi(base_damage * power))
+
+	set_hp(target_id, int(target["hp"]) - damage)
+
+	var energy_gain: int = int(
+		selected_ability.get("energy_gain", 0)
+	)
+	add_energy(attacker_id, energy_gain)
+
+	if ability_type == "basic":
+		restore_skill_points(1)
+
+	reset_action_bar(attacker_id)
+
+	return {
+		"success": true,
+		"ability_name": str(selected_ability["name"]),
+		"damage": damage,
+		"target_name": str(target["name"]),
+		"skill_points": get_skill_points(),
+		"energy": get_energy(attacker_id)
+	}
+
