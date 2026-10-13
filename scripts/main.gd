@@ -38,6 +38,9 @@ var target_selector: OptionButton
 var target_name_label: Label
 var target_hp_label: Label
 var target_hp_bar: ProgressBar
+var ally_info_labels: Dictionary = {}
+var ally_hp_labels: Dictionary = {}
+var ally_hp_bars: Dictionary = {}
 var attack_button: Button
 var restart_button: Button
 
@@ -356,6 +359,8 @@ func _build_ui() -> void:
 	target_hp_bar = _create_hp_progress_bar()
 	target_contents.add_child(target_hp_bar)
 
+	_build_ally_info_panel(canvas)
+
 	attack_button = Button.new()
 	attack_button.text = "Attacca"
 	attack_button.custom_minimum_size = Vector2(0.0, 40.0)
@@ -366,6 +371,87 @@ func _build_ui() -> void:
 	restart_button.text = "Ricomincia battaglia"
 	restart_button.pressed.connect(_on_restart_pressed)
 	control_contents.add_child(restart_button)
+
+
+func _build_ally_info_panel(canvas: CanvasLayer) -> void:
+	var panel: PanelContainer = PanelContainer.new()
+	panel.name = "AllyInfoPanel"
+	panel.anchor_left = 1.0
+	panel.anchor_top = 0.0
+	panel.anchor_right = 1.0
+	panel.anchor_bottom = 0.0
+	panel.offset_left = -316.0
+	panel.offset_top = 16.0
+	panel.offset_right = -16.0
+	panel.offset_bottom = 440.0
+	panel.custom_minimum_size = Vector2(300.0, 0.0)
+	canvas.add_child(panel)
+
+	var contents: VBoxContainer = VBoxContainer.new()
+	contents.add_theme_constant_override("separation", 8)
+	panel.add_child(contents)
+
+	var title: Label = Label.new()
+	title.text = "SQUADRA ALLEATA"
+	title.add_theme_font_size_override("font_size", 18)
+	contents.add_child(title)
+
+	for character_variant in party_data:
+		var character: Dictionary = character_variant
+		var character_id: String = str(character["id"])
+
+		var character_panel: PanelContainer = PanelContainer.new()
+		character_panel.name = "AllyCard_" + character_id
+		contents.add_child(character_panel)
+
+		var card_contents: VBoxContainer = VBoxContainer.new()
+		card_contents.add_theme_constant_override("separation", 3)
+		character_panel.add_child(card_contents)
+
+		var info_label: Label = Label.new()
+		info_label.name = "Info_" + character_id
+		info_label.text = str(character["name"]) + " | " + str(character.get("role", "DPS")) + " | Lv. " + str(character.get("level", 1))
+		info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		card_contents.add_child(info_label)
+		ally_info_labels[character_id] = info_label
+
+		var hp_label: Label = Label.new()
+		hp_label.name = "HP_" + character_id
+		hp_label.text = "HP: -- / --"
+		card_contents.add_child(hp_label)
+		ally_hp_labels[character_id] = hp_label
+
+		var hp_bar: ProgressBar = _create_hp_progress_bar()
+		hp_bar.custom_minimum_size = Vector2(250.0, 14.0)
+		card_contents.add_child(hp_bar)
+		ally_hp_bars[character_id] = hp_bar
+
+	_update_ally_info()
+
+
+func _update_ally_info() -> void:
+	if ally_hp_bars.is_empty():
+		return
+
+	for character_id_variant in ally_hp_bars.keys():
+		var character_id: String = str(character_id_variant)
+		var fighter: Dictionary = combat_manager.get_combatant(character_id)
+
+		if fighter.is_empty():
+			continue
+
+		var current_hp: int = int(fighter["hp"])
+		var max_hp: int = int(fighter["max_hp"])
+		var hp_label: Label = ally_hp_labels[character_id]
+		var hp_bar: ProgressBar = ally_hp_bars[character_id]
+
+		if bool(fighter["alive"]):
+			hp_label.text = "HP: " + str(current_hp) + " / " + str(max_hp)
+		else:
+			hp_label.text = "SCONFITTO — HP: 0 / " + str(max_hp)
+
+		hp_bar.max_value = maxf(1.0, float(max_hp))
+		hp_bar.value = clampf(float(current_hp), 0.0, float(max_hp))
 
 
 func _create_action_bar() -> ProgressBar:
@@ -650,6 +736,7 @@ func _update_fighter_visuals() -> void:
 	_update_turn_indicator()
 	_update_target_indicator()
 	_update_target_info()
+	_update_ally_info()
 
 
 func _update_fighter_hp_bar(fighter_id: String, fighter: Dictionary) -> void:
@@ -910,6 +997,7 @@ func _update_ui() -> void:
 	_update_turn_indicator()
 	_update_target_indicator()
 	_update_target_info()
+	_update_ally_info()
 
 
 func _update_action_bars() -> void:
