@@ -315,8 +315,8 @@ func _build_ui() -> void:
 	controls.anchor_bottom = 1.0
 	controls.offset_left = 16.0
 	controls.offset_top = -310.0
-    controls.offset_right = 376.0
-    controls.offset_bottom = -16.0
+	controls.offset_right = 376.0
+	controls.offset_bottom = -16.0
 	canvas.add_child(controls)
 
 	var control_contents: VBoxContainer = VBoxContainer.new()
@@ -382,17 +382,17 @@ func _build_ui() -> void:
 	skill_button.pressed.connect(_on_skill_pressed)
 	control_contents.add_child(skill_button)
 
-    energy_label = Label.new()
-    energy_label.name = "EnergyLabel"
-    energy_label.text = "Energia: 0 / 100"
-    control_contents.add_child(energy_label)
+   	energy_label = Label.new()
+	energy_label.name = "EnergyLabel"
+	energy_label.text = "Energia: 0 / 100"
+	control_contents.add_child(energy_label)
 
-    ultimate_button = Button.new()
-    ultimate_button.name = "UltimateButton"
-    ultimate_button.text = "Ultimate"
-    ultimate_button.custom_minimum_size = Vector2(0.0, 40.0)
-    ultimate_button.pressed.connect(_on_ultimate_pressed)
-    control_contents.add_child(ultimate_button)
+	ultimate_button = Button.new()
+	ultimate_button.name = "UltimateButton"
+	ultimate_button.text = "Ultimate"
+	ultimate_button.custom_minimum_size = Vector2(0.0, 40.0)
+	ultimate_button.pressed.connect(_on_ultimate_pressed)
+	control_contents.add_child(ultimate_button)
 
 	restart_button = Button.new()
 	restart_button.text = "Ricomincia battaglia"
