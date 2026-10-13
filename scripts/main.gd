@@ -35,6 +35,9 @@ var turn_label: Label
 var hero_bar: ProgressBar
 var enemy_bar: ProgressBar
 var target_selector: OptionButton
+var target_name_label: Label
+var target_hp_label: Label
+var target_hp_bar: ProgressBar
 var attack_button: Button
 var restart_button: Button
 
@@ -304,7 +307,7 @@ func _build_ui() -> void:
 	controls.anchor_right = 0.0
 	controls.anchor_bottom = 1.0
 	controls.offset_left = 16.0
-	controls.offset_top = -170.0
+	controls.offset_top = -250.0
 	controls.offset_right = 376.0
 	controls.offset_bottom = -16.0
 	canvas.add_child(controls)
@@ -327,6 +330,31 @@ func _build_ui() -> void:
 	target_selector.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	target_selector.item_selected.connect(_on_target_selected)
 	control_contents.add_child(target_selector)
+
+	var target_panel: PanelContainer = PanelContainer.new()
+	target_panel.name = "TargetInfoPanel"
+	control_contents.add_child(target_panel)
+
+	var target_contents: VBoxContainer = VBoxContainer.new()
+	target_contents.add_theme_constant_override("separation", 4)
+	target_panel.add_child(target_contents)
+
+	var target_title: Label = Label.new()
+	target_title.text = "BERSAGLIO SELEZIONATO"
+	target_title.add_theme_font_size_override("font_size", 12)
+	target_contents.add_child(target_title)
+
+	target_name_label = Label.new()
+	target_name_label.text = "Nessun bersaglio"
+	target_name_label.add_theme_font_size_override("font_size", 16)
+	target_contents.add_child(target_name_label)
+
+	target_hp_label = Label.new()
+	target_hp_label.text = "HP: -- / --"
+	target_contents.add_child(target_hp_label)
+
+	target_hp_bar = _create_hp_progress_bar()
+	target_contents.add_child(target_hp_bar)
 
 	attack_button = Button.new()
 	attack_button.text = "Attacca"
@@ -353,6 +381,27 @@ func _create_action_bar() -> ProgressBar:
 
 	var fill_style: StyleBoxFlat = StyleBoxFlat.new()
 	fill_style.bg_color = Color(0.12, 0.42, 1.0)
+	fill_style.set_corner_radius_all(3)
+	bar.add_theme_stylebox_override("fill", fill_style)
+
+	return bar
+
+
+func _create_hp_progress_bar() -> ProgressBar:
+	var bar: ProgressBar = ProgressBar.new()
+	bar.custom_minimum_size = Vector2(280.0, 18.0)
+	bar.min_value = 0.0
+	bar.max_value = 100.0
+	bar.value = 100.0
+	bar.show_percentage = false
+
+	var background_style: StyleBoxFlat = StyleBoxFlat.new()
+	background_style.bg_color = Color(0.12, 0.14, 0.18)
+	background_style.set_corner_radius_all(3)
+	bar.add_theme_stylebox_override("background", background_style)
+
+	var fill_style: StyleBoxFlat = StyleBoxFlat.new()
+	fill_style.bg_color = Color(0.12, 0.88, 0.22)
 	fill_style.set_corner_radius_all(3)
 	bar.add_theme_stylebox_override("fill", fill_style)
 
@@ -600,6 +649,7 @@ func _update_fighter_visuals() -> void:
 
 	_update_turn_indicator()
 	_update_target_indicator()
+	_update_target_info()
 
 
 func _update_fighter_hp_bar(fighter_id: String, fighter: Dictionary) -> void:
@@ -618,6 +668,32 @@ func _update_fighter_hp_bar(fighter_id: String, fighter: Dictionary) -> void:
 	fill.scale.x = ratio
 	fill.position.x = -(HP_BAR_WIDTH * (1.0 - ratio)) / 2.0
 	fill.visible = bool(fighter["alive"])
+
+
+func _update_target_info() -> void:
+	if target_name_label == null:
+		return
+
+	var target: Dictionary = combat_manager.get_combatant(selected_enemy_id)
+
+	if target.is_empty():
+		target_name_label.text = "Nessun bersaglio"
+		target_hp_label.text = "HP: -- / --"
+		target_hp_bar.value = 0.0
+		return
+
+	var current_hp: int = int(target["hp"])
+	var max_hp: int = int(target["max_hp"])
+
+	target_name_label.text = str(target["name"])
+
+	if bool(target["alive"]):
+		target_hp_label.text = "HP: " + str(current_hp) + " / " + str(max_hp)
+	else:
+		target_hp_label.text = "SCONFITTO — HP: 0 / " + str(max_hp)
+
+	target_hp_bar.max_value = maxf(1.0, float(max_hp))
+	target_hp_bar.value = clampf(float(current_hp), 0.0, float(max_hp))
 
 
 func _update_turn_indicator() -> void:
@@ -671,6 +747,7 @@ func _refresh_target_options() -> void:
 		target_selector.select(0)
 
 	_update_target_indicator()
+	_update_target_info()
 
 
 func _on_target_selected(index: int) -> void:
@@ -679,6 +756,7 @@ func _on_target_selected(index: int) -> void:
 
 	selected_enemy_id = str(target_selector.get_item_metadata(index))
 	_update_target_indicator()
+	_update_target_info()
 	_update_ui()
 
 
@@ -831,6 +909,7 @@ func _update_ui() -> void:
 	_update_action_bars()
 	_update_turn_indicator()
 	_update_target_indicator()
+	_update_target_info()
 
 
 func _update_action_bars() -> void:
