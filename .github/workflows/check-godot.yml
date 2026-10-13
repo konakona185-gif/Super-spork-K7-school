@@ -24,13 +24,24 @@ jobs:
           chmod +x Godot_v4.4-stable_linux.x86_64
           echo "GODOT_BIN=$PWD/Godot_v4.4-stable_linux.x86_64" >> "$GITHUB_ENV"
 
-      - name: Avvia la scena e controlla gli errori
+      - name: Controlla il motore Action Bar
+        shell: bash
+        run: |
+          set -o pipefail
+          "$GODOT_BIN" --headless --path "$GITHUB_WORKSPACE" --check-only --script res://scripts/combat_manager.gd 2>&1 | tee combat-manager.log
+
+          if grep -E 'SCRIPT ERROR:|Parse Error:|Failed to load script' combat-manager.log; then
+            echo "Errore nel motore Action Bar."
+            exit 1
+          fi
+
+      - name: Avvia la scena principale
         shell: bash
         run: |
           set -o pipefail
           "$GODOT_BIN" --headless --path "$GITHUB_WORKSPACE" --quit-after 5 2>&1 | tee godot-run.log
 
           if grep -E 'SCRIPT ERROR:|Parse Error:|Failed to load script|No loader found for resource|Cannot open file' godot-run.log; then
-            echo "Rilevati possibili errori di script o caricamento."
+            echo "Errore durante l'avvio della scena."
             exit 1
           fi
