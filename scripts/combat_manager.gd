@@ -1,3 +1,4 @@
+
 extends RefCounted
 class_name CombatManager
 
@@ -333,6 +334,29 @@ func get_combatants() -> Array[Dictionary]:
 	return combatants
 
 
+func _get_passive_damage_multiplier(attacker: Dictionary) -> float:
+	var multiplier: float = 1.0
+	var character_id: String = str(attacker["id"])
+	var current_hp: float = float(attacker["hp"])
+	var max_hp: float = maxf(1.0, float(attacker["max_hp"]))
+	var hp_ratio: float = current_hp / max_hp
+
+	for ability in get_abilities_for_character(character_id):
+		if str(ability.get("type", "")) != "passive":
+			continue
+
+		var effect: String = str(ability.get("effect", ""))
+		var condition: String = str(ability.get("condition", ""))
+		var power: float = float(ability.get("power", 0.0))
+
+		if effect == "conditional_damage_bonus":
+			if condition == "hp_below_or_equal_50_percent":
+				if hp_ratio <= 0.5:
+					multiplier *= 1.0 + power
+
+	return multiplier
+
+
 func use_damage_ability(
 	attacker_id: String,
 	target_id: String,
@@ -395,7 +419,11 @@ func use_damage_ability(
 		1.0,
 		float(attacker["atk"]) - float(target["def"])
 	)
-	var damage: int = maxi(1, roundi(base_damage * power))
+	var passive_multiplier: float = _get_passive_damage_multiplier(attacker)
+	var damage: int = maxi(
+		1,
+		roundi(base_damage * power * passive_multiplier)
+	)
 
 	set_hp(target_id, int(target["hp"]) - damage)
 
