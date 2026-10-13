@@ -8,6 +8,7 @@ const MAX_ENEMIES: int = 5
 const HP_BAR_WIDTH: float = 0.95
 const HP_BAR_HEIGHT: float = 0.09
 const HP_BAR_Y: float = 1.85
+const TURN_INDICATOR_Y: float = 2.35
 
 var combat_manager = CombatManagerScript.new()
 
@@ -26,6 +27,7 @@ var pending_turns: Array[Dictionary] = []
 var fighter_meshes: Dictionary = {}
 var fighter_hp_bars: Dictionary = {}
 var fighter_hp_fills: Dictionary = {}
+var turn_indicators: Dictionary = {}
 
 var status_label: Label
 var turn_label: Label
@@ -88,6 +90,7 @@ func _process(delta: float) -> void:
 
 	active_enemy_id = fighter_id
 	waiting_for_enemy_turn = true
+	_update_ui()
 	_perform_enemy_turn()
 
 
@@ -380,6 +383,7 @@ func _create_fighter_visuals() -> void:
 	fighter_meshes.clear()
 	fighter_hp_bars.clear()
 	fighter_hp_fills.clear()
+	turn_indicators.clear()
 
 	var allies: Array[Dictionary] = []
 	var enemies: Array[Dictionary] = []
@@ -448,6 +452,7 @@ func _create_fighter_model(fighter: Dictionary, fighter_position: Vector3) -> vo
 
 	fighter_meshes[fighter_id] = model
 	_create_fighter_hp_bar(fighter, model)
+	_create_turn_indicator(fighter, model)
 
 
 func _create_fighter_hp_bar(fighter: Dictionary, model: MeshInstance3D) -> void:
@@ -490,6 +495,37 @@ func _create_fighter_hp_bar(fighter: Dictionary, model: MeshInstance3D) -> void:
 	fighter_hp_fills[fighter_id] = fill
 
 
+func _create_turn_indicator(fighter: Dictionary, model: MeshInstance3D) -> void:
+	var fighter_id: String = str(fighter["id"])
+
+	var indicator: MeshInstance3D = MeshInstance3D.new()
+	indicator.name = "TurnIndicator_" + fighter_id
+
+	var sphere: SphereMesh = SphereMesh.new()
+	sphere.radius = 0.13
+	sphere.height = 0.26
+	indicator.mesh = sphere
+	indicator.position = Vector3(0.0, TURN_INDICATOR_Y, 0.0)
+
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.emission_enabled = true
+	material.emission_energy_multiplier = 1.5
+
+	if str(fighter["team"]) == "hero":
+		material.albedo_color = Color(0.2, 0.8, 1.0)
+		material.emission = Color(0.2, 0.8, 1.0)
+	else:
+		material.albedo_color = Color(1.0, 0.25, 0.15)
+		material.emission = Color(1.0, 0.25, 0.15)
+
+	indicator.material_override = material
+	indicator.visible = false
+	model.add_child(indicator)
+
+	turn_indicators[fighter_id] = indicator
+
+
 func _update_fighter_visuals() -> void:
 	for fighter_id_variant in fighter_meshes.keys():
 		var fighter_id: String = str(fighter_id_variant)
@@ -516,6 +552,8 @@ func _update_fighter_visuals() -> void:
 
 		_update_fighter_hp_bar(fighter_id, fighter)
 
+	_update_turn_indicator()
+
 
 func _update_fighter_hp_bar(fighter_id: String, fighter: Dictionary) -> void:
 	if not fighter_hp_fills.has(fighter_id):
@@ -532,11 +570,26 @@ func _update_fighter_hp_bar(fighter_id: String, fighter: Dictionary) -> void:
 
 	fill.scale.x = ratio
 	fill.position.x = -(HP_BAR_WIDTH * (1.0 - ratio)) / 2.0
+	fill.visible = bool(fighter["alive"])
 
-	if not bool(fighter["alive"]):
-		fill.visible = false
-	else:
-		fill.visible = true
+
+func _update_turn_indicator() -> void:
+	for fighter_id_variant in turn_indicators.keys():
+		var fighter_id: String = str(fighter_id_variant)
+		var fighter: Dictionary = combat_manager.get_combatant(fighter_id)
+		var indicator: MeshInstance3D = turn_indicators[fighter_id]
+
+		if fighter.is_empty() or not is_instance_valid(indicator):
+			continue
+
+		var should_show: bool = false
+
+		if bool(fighter["alive"]) and waiting_for_hero_turn:
+			should_show = fighter_id == active_hero_id
+		elif bool(fighter["alive"]) and waiting_for_enemy_turn:
+			should_show = fighter_id == active_enemy_id
+
+		indicator.visible = should_show
 
 
 func _refresh_target_options() -> void:
@@ -615,12 +668,23 @@ func _on_attack_pressed() -> void:
 func _perform_enemy_turn() -> void:
 	if battle_over:
 		waiting_for_enemy_turn = false
+		_update_turn_indicator()
+		return
+
+	_update_turn_indicator()
+	await get_tree().create_timer(0.45).timeout
+
+	if battle_over:
+		waiting_for_enemy_turn = false
+		_update_turn_indicator()
 		return
 
 	var enemy: Dictionary = combat_manager.get_combatant(active_enemy_id)
 
 	if enemy.is_empty() or not bool(enemy["alive"]):
 		waiting_for_enemy_turn = false
+		active_enemy_id = ""
+		_update_turn_indicator()
 		return
 
 	var target: Dictionary = {}
@@ -635,6 +699,7 @@ func _perform_enemy_turn() -> void:
 	if target.is_empty():
 		waiting_for_enemy_turn = false
 		_check_battle_end()
+		_update_turn_indicator()
 		return
 
 	var damage: int = maxi(1, int(enemy["atk"]) - int(target["def"]))
@@ -714,6 +779,7 @@ func _update_ui() -> void:
 		attack_button.disabled = battle_over or not waiting_for_hero_turn or selected_enemy_id.is_empty()
 
 	_update_action_bars()
+	_update_turn_indicator()
 
 
 func _update_action_bars() -> void:
