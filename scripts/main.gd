@@ -28,6 +28,7 @@ var fighter_meshes: Dictionary = {}
 var fighter_hp_bars: Dictionary = {}
 var fighter_hp_fills: Dictionary = {}
 var turn_indicators: Dictionary = {}
+var target_indicators: Dictionary = {}
 
 var status_label: Label
 var turn_label: Label
@@ -217,7 +218,6 @@ func _build_arena() -> void:
 	add_child(camera)
 
 	var light: DirectionalLight3D = DirectionalLight3D.new()
-	light.name = "ArenaLight"
 	light.rotation_degrees = Vector3(-50.0, -25.0, 0.0)
 	light.light_energy = 1.2
 	add_child(light)
@@ -384,6 +384,7 @@ func _create_fighter_visuals() -> void:
 	fighter_hp_bars.clear()
 	fighter_hp_fills.clear()
 	turn_indicators.clear()
+	target_indicators.clear()
 
 	var allies: Array[Dictionary] = []
 	var enemies: Array[Dictionary] = []
@@ -453,6 +454,7 @@ func _create_fighter_model(fighter: Dictionary, fighter_position: Vector3) -> vo
 	fighter_meshes[fighter_id] = model
 	_create_fighter_hp_bar(fighter, model)
 	_create_turn_indicator(fighter, model)
+	_create_target_indicator(fighter, model)
 
 
 func _create_fighter_hp_bar(fighter: Dictionary, model: MeshInstance3D) -> void:
@@ -526,6 +528,50 @@ func _create_turn_indicator(fighter: Dictionary, model: MeshInstance3D) -> void:
 	turn_indicators[fighter_id] = indicator
 
 
+func _create_target_indicator(fighter: Dictionary, model: MeshInstance3D) -> void:
+	var fighter_id: String = str(fighter["id"])
+
+	if str(fighter["team"]) != "enemy":
+		return
+
+	var indicator: MeshInstance3D = MeshInstance3D.new()
+	indicator.name = "TargetIndicator_" + fighter_id
+
+	var ring: TorusMesh = TorusMesh.new()
+	ring.inner_radius = 0.43
+	ring.outer_radius = 0.49
+	indicator.mesh = ring
+	indicator.position = Vector3(0.0, 0.08, 0.0)
+	indicator.rotation_degrees.x = 90.0
+
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+	material.albedo_color = Color(1.0, 0.85, 0.05)
+	material.emission_enabled = true
+	material.emission = Color(1.0, 0.75, 0.0)
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+
+	indicator.material_override = material
+	indicator.visible = false
+	model.add_child(indicator)
+
+	target_indicators[fighter_id] = indicator
+
+
+func _update_target_indicator() -> void:
+	for fighter_id_variant in target_indicators.keys():
+		var fighter_id: String = str(fighter_id_variant)
+		var fighter: Dictionary = combat_manager.get_combatant(fighter_id)
+		var indicator: MeshInstance3D = target_indicators[fighter_id]
+
+		if fighter.is_empty() or not is_instance_valid(indicator):
+			continue
+
+		indicator.visible = (
+			bool(fighter["alive"])
+			and fighter_id == selected_enemy_id
+		)
+
+
 func _update_fighter_visuals() -> void:
 	for fighter_id_variant in fighter_meshes.keys():
 		var fighter_id: String = str(fighter_id_variant)
@@ -553,6 +599,7 @@ func _update_fighter_visuals() -> void:
 		_update_fighter_hp_bar(fighter_id, fighter)
 
 	_update_turn_indicator()
+	_update_target_indicator()
 
 
 func _update_fighter_hp_bar(fighter_id: String, fighter: Dictionary) -> void:
@@ -623,12 +670,15 @@ func _refresh_target_options() -> void:
 	if target_selector.item_count > 0:
 		target_selector.select(0)
 
+	_update_target_indicator()
+
 
 func _on_target_selected(index: int) -> void:
 	if index < 0 or index >= target_selector.item_count:
 		return
 
 	selected_enemy_id = str(target_selector.get_item_metadata(index))
+	_update_target_indicator()
 	_update_ui()
 
 
@@ -780,6 +830,7 @@ func _update_ui() -> void:
 
 	_update_action_bars()
 	_update_turn_indicator()
+	_update_target_indicator()
 
 
 func _update_action_bars() -> void:
