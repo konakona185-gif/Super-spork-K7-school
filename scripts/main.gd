@@ -363,7 +363,7 @@ func _build_ui() -> void:
 
 	_build_ally_info_panel(canvas)
 
-		skill_points_label = Label.new()
+	skill_points_label = Label.new()
 	skill_points_label.name = "SkillPointsLabel"
 	skill_points_label.text = "Punti Abilità: 3 / 5"
 	control_contents.add_child(skill_points_label)
@@ -861,7 +861,6 @@ func _on_target_selected(index: int) -> void:
 
 
 func _on_attack_pressed() -> void:
-	func _on_attack_pressed() -> void:
 	_use_hero_ability("basic")
 
 
@@ -1030,7 +1029,7 @@ func _update_ui() -> void:
 		else:
 			turn_label.text = "Le barre d'azione stanno avanzando..."
 
-		if attack_button != null:
+	if attack_button != null:
 		attack_button.disabled = (
 			battle_over
 			or not waiting_for_hero_turn
