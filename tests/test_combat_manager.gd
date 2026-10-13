@@ -98,6 +98,7 @@ func _run_tests() -> void:
 	failures += _test_action_bar_limit()
 	failures += _test_skill_point_limit()
 	failures += _test_energy_limit()
+	failures += _test_combatant_validation()
 
 	if failures == 0:
 		print("TEST COMBAT MANAGER: TUTTI I TEST SUPERATI")
@@ -251,6 +252,98 @@ func _test_energy_limit() -> int:
 
 	if manager.get_energy("hero_001") != 100:
 		failures += _fail("Energia modificata da ID inesistente")
+
+	return failures
+
+
+func _test_combatant_validation() -> int:
+	var failures: int = 0
+	var manager = CombatManagerScript.new()
+
+	var valid_data: Dictionary = {
+		"id": "test_hero",
+		"name": "Eroe test",
+		"stats": {
+			"hp": 100,
+			"atk": 10,
+			"def": 5,
+			"speed": 100
+		}
+	}
+
+	var used_ids: Dictionary = {}
+
+	var valid_error: String = manager._get_combatant_data_error(
+		valid_data,
+		used_ids
+	)
+
+	if not valid_error.is_empty():
+		failures += _fail("Rifiuto ingiustificato di dati validi")
+
+	var duplicate_error: String = manager._get_combatant_data_error(
+		valid_data,
+		used_ids
+	)
+
+	if duplicate_error.is_empty():
+		failures += _fail("Rilevamento ID duplicato")
+
+	var missing_stats: Dictionary = {
+		"id": "test_missing_stats",
+		"name": "Eroe senza statistiche"
+	}
+
+	var missing_stats_error: String = manager._get_combatant_data_error(
+		missing_stats,
+		{}
+	)
+
+	if missing_stats_error.is_empty():
+		failures += _fail("Rilevamento statistiche mancanti")
+
+	var invalid_hp: Dictionary = {
+		"id": "test_invalid_hp",
+		"name": "Eroe con HP non validi",
+		"stats": {
+			"hp": 0,
+			"atk": 10
+		}
+	}
+
+	var invalid_hp_error: String = manager._get_combatant_data_error(
+		invalid_hp,
+		{}
+	)
+
+	if invalid_hp_error.is_empty():
+		failures += _fail("Rilevamento HP non validi")
+
+	var invalid_speed: Dictionary = {
+		"id": "test_invalid_speed",
+		"name": "Eroe con velocita non valida",
+		"stats": {
+			"hp": 100,
+			"atk": 10,
+			"speed": 0
+		}
+	}
+
+	var invalid_speed_error: String = manager._get_combatant_data_error(
+		invalid_speed,
+		{}
+	)
+
+	if invalid_speed_error.is_empty():
+		failures += _fail("Rilevamento velocita non valida")
+
+	var invalid_data_error: String = manager._get_combatant_data_error(
+		"non è un personaggio",
+		{}
+	)
+
+	if invalid_data_error.is_empty():
+		failures += _fail("Rilevamento dati non validi")
 
 	return failures
 
