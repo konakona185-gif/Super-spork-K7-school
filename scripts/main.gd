@@ -1,14 +1,22 @@
+
 extends Node3D
 
-var hero_hp: int = 100
-var enemy_hp: int = 60
-var hero_turn: bool = true
+const HERO_MAX_HP: int = 100
+const ENEMY_MAX_HP: int = 60
+
+var hero_hp: int = HERO_MAX_HP
+var enemy_hp: int = ENEMY_MAX_HP
+var battle_over: bool = false
+var rng := RandomNumberGenerator.new()
 
 var status_label: Label
 var attack_button: Button
 var restart_button: Button
+var hero_mesh: MeshInstance3D
+var enemy_mesh: MeshInstance3D
 
 func _ready() -> void:
+	rng.randomize()
 	_build_arena()
 	_build_ui()
 	_update_ui()
@@ -20,9 +28,9 @@ func _build_arena() -> void:
 	floor_mesh.mesh = plane
 	floor_mesh.position.y = -0.1
 
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.16, 0.20, 0.25)
-	floor_mesh.material_override = material
+	var floor_material := StandardMaterial3D.new()
+	floor_material.albedo_color = Color(0.16, 0.20, 0.25)
+	floor_mesh.material_override = floor_material
 	add_child(floor_mesh)
 
 	var light := DirectionalLight3D.new()
@@ -31,13 +39,21 @@ func _build_arena() -> void:
 
 	var camera := Camera3D.new()
 	camera.position = Vector3(0, 7, 10)
-	camera.look_at(Vector3(0, 0, 0))
+	camera.look_at(Vector3(0, 0.5, 0))
+	camera.current = true
 	add_child(camera)
 
-	_create_fighter(Vector3(-2, 0.8, 0), Color(0.2, 0.55, 1.0))
-	_create_fighter(Vector3(2, 0.8, 0), Color(1.0, 0.25, 0.2))
+	hero_mesh = _create_fighter(
+		Vector3(-2, 0.8, 0),
+		Color(0.2, 0.55, 1.0)
+	)
 
-func _create_fighter(pos: Vector3, tint: Color) -> void:
+	enemy_mesh = _create_fighter(
+		Vector3(2, 0.8, 0),
+		Color(1.0, 0.25, 0.2)
+	)
+
+func _create_fighter(pos: Vector3, tint: Color) -> MeshInstance3D:
 	var fighter := MeshInstance3D.new()
 	var mesh := CapsuleMesh.new()
 	mesh.radius = 0.45
@@ -50,65 +66,77 @@ func _create_fighter(pos: Vector3, tint: Color) -> void:
 	fighter.material_override = material
 	add_child(fighter)
 
+	return fighter
+
 func _build_ui() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
 
-	var panel := VBoxContainer.new()
+	var panel := PanelContainer.new()
 	panel.position = Vector2(20, 20)
-	panel.add_theme_constant_override("separation", 10)
+	panel.custom_minimum_size = Vector2(320, 0)
 	layer.add_child(panel)
+
+	var layout := VBoxContainer.new()
+	layout.add_theme_constant_override("separation", 10)
+	panel.add_child(layout)
 
 	var title := Label.new()
 	title.text = "ENDLESS ARENA"
 	title.add_theme_font_size_override("font_size", 28)
-	panel.add_child(title)
+	layout.add_child(title)
 
 	status_label = Label.new()
-	panel.add_child(status_label)
+	layout.add_child(status_label)
 
 	attack_button = Button.new()
 	attack_button.text = "Attacca"
 	attack_button.pressed.connect(_on_attack_pressed)
-	panel.add_child(attack_button)
+	layout.add_child(attack_button)
 
 	restart_button = Button.new()
 	restart_button.text = "Ricomincia"
 	restart_button.pressed.connect(_on_restart_pressed)
 	restart_button.visible = false
-	panel.add_child(restart_button)
+	layout.add_child(restart_button)
 
 func _update_ui() -> void:
-	status_label.text = "Eroe: %d HP\nNemico: %d HP" % [hero_hp, enemy_hp]
+	status_label.text = "EROE: %d / %d HP\nNEMICO: %d / %d HP" % [
+		hero_hp, HERO_MAX_HP, enemy_hp, ENEMY_MAX_HP
+	]
 
 	if hero_hp <= 0:
-		status_label.text += "\nSconfitta!"
-		attack_button.visible = false
-		restart_button.visible = true
+		status_label.text += "\n\nSCONFITTA!"
 	elif enemy_hp <= 0:
-		status_label.text += "\nVittoria!"
-		attack_button.visible = false
-		restart_button.visible = true
-	else:
-		attack_button.visible = hero_turn
-		restart_button.visible = false
+		status_label.text += "\n\nVITTORIA!"
+	elif battle_over:
+		status_label.text += "\n\nBattaglia terminata."
+
+	attack_button.visible = not battle_over
+	restart_button.visible = battle_over
 
 func _on_attack_pressed() -> void:
-	if not hero_turn or hero_hp <= 0 or enemy_hp <= 0:
+	if battle_over:
 		return
 
-	enemy_hp = max(0, enemy_hp - randi_range(12, 20))
+	var hero_damage := rng.randi_range(12, 20)
+	enemy_hp = max(0, enemy_hp - hero_damage)
 
-	if enemy_hp > 0:
-		hero_turn = false
-		enemy_hp = max(0, enemy_hp)
-		hero_hp = max(0, hero_hp - randi_range(5, 12))
-		hero_turn = true
+	if enemy_hp <= 0:
+		battle_over = true
+		_update_ui()
+		return
+
+	var enemy_damage := rng.randi_range(5, 12)
+	hero_hp = max(0, hero_hp - enemy_damage)
+
+	if hero_hp <= 0:
+		battle_over = true
 
 	_update_ui()
 
 func _on_restart_pressed() -> void:
-	hero_hp = 100
-	enemy_hp = 60
-	hero_turn = true
+	hero_hp = HERO_MAX_HP
+	enemy_hp = ENEMY_MAX_HP
+	battle_over = false
 	_update_ui()
