@@ -16,6 +16,7 @@ var combat_manager
 
 var status_label: Label
 var turn_label: Label
+var turn_indicator_label: Label
 var attack_button: Button
 var restart_button: Button
 
@@ -55,9 +56,19 @@ func _process(delta: float) -> void:
 
 	if str(ready_fighter["team"]) == "hero":
 		waiting_for_hero_turn = true
-		turn_label.text = "È il tuo turno! Premi Attacca."
+		turn_indicator_label.text = "▶ TURNO DEL GIOCATORE"
+		turn_indicator_label.add_theme_color_override(
+			"font_color",
+			Color(0.3, 0.85, 1.0)
+		)
+		turn_label.text = "Il tuo personaggio è pronto. Scegli Attacca."
 		_update_ui()
 	else:
+		turn_indicator_label.text = "▶ TURNO DEL NEMICO"
+		turn_indicator_label.add_theme_color_override(
+			"font_color",
+			Color(1.0, 0.4, 0.3)
+		)
 		_enemy_turn(ready_fighter)
 
 
@@ -215,7 +226,7 @@ func _build_ui() -> void:
 
 	var panel := PanelContainer.new()
 	panel.position = Vector2(20, 20)
-	panel.custom_minimum_size = Vector2(360, 0)
+	panel.custom_minimum_size = Vector2(380, 0)
 	layer.add_child(panel)
 
 	var layout := VBoxContainer.new()
@@ -230,8 +241,11 @@ func _build_ui() -> void:
 	status_label = Label.new()
 	layout.add_child(status_label)
 
+	var separator := HSeparator.new()
+	layout.add_child(separator)
+
 	var hero_title := Label.new()
-	hero_title.text = "BARRA D'AZIONE - EROE"
+	hero_title.text = "AVVENTURIERO — BARRA D'AZIONE"
 	layout.add_child(hero_title)
 
 	hero_action_bar = ProgressBar.new()
@@ -239,14 +253,14 @@ func _build_ui() -> void:
 	hero_action_bar.max_value = 100.0
 	hero_action_bar.value = 0.0
 	hero_action_bar.show_percentage = false
-	hero_action_bar.custom_minimum_size = Vector2(300, 24)
+	hero_action_bar.custom_minimum_size = Vector2(320, 26)
 	layout.add_child(hero_action_bar)
 
 	hero_bar_label = Label.new()
 	layout.add_child(hero_bar_label)
 
 	var enemy_title := Label.new()
-	enemy_title.text = "BARRA D'AZIONE - NEMICO"
+	enemy_title.text = "SLIME CREMISI — BARRA D'AZIONE"
 	layout.add_child(enemy_title)
 
 	enemy_action_bar = ProgressBar.new()
@@ -254,14 +268,27 @@ func _build_ui() -> void:
 	enemy_action_bar.max_value = 100.0
 	enemy_action_bar.value = 0.0
 	enemy_action_bar.show_percentage = false
-	enemy_action_bar.custom_minimum_size = Vector2(300, 24)
+	enemy_action_bar.custom_minimum_size = Vector2(320, 26)
 	layout.add_child(enemy_action_bar)
 
 	enemy_bar_label = Label.new()
 	layout.add_child(enemy_bar_label)
 
+	var turn_separator := HSeparator.new()
+	layout.add_child(turn_separator)
+
+	turn_indicator_label = Label.new()
+	turn_indicator_label.text = "COMBATTIMENTO IN CORSO"
+	turn_indicator_label.add_theme_font_size_override("font_size", 18)
+	turn_indicator_label.add_theme_color_override(
+		"font_color",
+		Color(0.8, 0.85, 0.95)
+	)
+	layout.add_child(turn_indicator_label)
+
 	turn_label = Label.new()
 	turn_label.text = "Le barre si stanno riempiendo..."
+	turn_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	layout.add_child(turn_label)
 
 	attack_button = Button.new()
@@ -298,10 +325,21 @@ func _update_ui() -> void:
 		int(enemy_stats["speed"])
 	]
 
-	if hero_hp <= 0:
-		status_label.text += "\n\nSCONFITTA!"
-	elif enemy_hp <= 0:
-		status_label.text += "\n\nVITTORIA!"
+	if battle_over:
+		if hero_hp <= 0:
+			turn_indicator_label.text = "SCONFITTA"
+			turn_indicator_label.add_theme_color_override(
+				"font_color",
+				Color(1.0, 0.3, 0.3)
+			)
+		else:
+			turn_indicator_label.text = "VITTORIA"
+			turn_indicator_label.add_theme_color_override(
+				"font_color",
+				Color(0.3, 1.0, 0.5)
+			)
+
+		status_label.text += "\n\nCOMBATTIMENTO TERMINATO"
 
 	attack_button.visible = not battle_over
 	attack_button.disabled = not waiting_for_hero_turn
@@ -321,9 +359,20 @@ func _update_action_bars() -> void:
 		if team == "hero":
 			hero_action_bar.value = progress
 			hero_bar_label.text = "Avanzamento: %d%%" % int(round(progress))
+
+			if waiting_for_hero_turn:
+				hero_action_bar.modulate = Color(1.0, 0.85, 0.35)
+			else:
+				hero_action_bar.modulate = Color.WHITE
+
 		elif team == "enemy":
 			enemy_action_bar.value = progress
 			enemy_bar_label.text = "Avanzamento: %d%%" % int(round(progress))
+
+			if not waiting_for_hero_turn and progress >= 100.0:
+				enemy_action_bar.modulate = Color(1.0, 0.75, 0.65)
+			else:
+				enemy_action_bar.modulate = Color.WHITE
 
 
 func _on_attack_pressed() -> void:
@@ -331,6 +380,7 @@ func _on_attack_pressed() -> void:
 		return
 
 	var hero_stats: Dictionary = hero_data["stats"]
+
 	var damage: int = rng.randi_range(
 		int(hero_stats["attack_min"]),
 		int(hero_stats["attack_max"])
@@ -349,13 +399,20 @@ func _on_attack_pressed() -> void:
 
 	if enemy_hp <= 0:
 		battle_over = true
-		turn_label.text += "\nVittoria! Il nemico è stato sconfitto."
+		turn_label.text += "\nIl nemico è stato sconfitto!"
+	else:
+		turn_indicator_label.text = "COMBATTIMENTO IN CORSO"
+		turn_indicator_label.add_theme_color_override(
+			"font_color",
+			Color(0.8, 0.85, 0.95)
+		)
 
 	_update_ui()
 
 
 func _enemy_turn(_fighter: Dictionary) -> void:
 	var enemy_stats: Dictionary = enemy_data["stats"]
+
 	var damage: int = rng.randi_range(
 		int(enemy_stats["attack_min"]),
 		int(enemy_stats["attack_max"])
@@ -373,7 +430,13 @@ func _enemy_turn(_fighter: Dictionary) -> void:
 
 	if hero_hp <= 0:
 		battle_over = true
-		turn_label.text += "\nSconfitta! Il tuo eroe è stato sconfitto."
+		turn_label.text += "\nIl tuo eroe è stato sconfitto!"
+	else:
+		turn_indicator_label.text = "COMBATTIMENTO IN CORSO"
+		turn_indicator_label.add_theme_color_override(
+			"font_color",
+			Color(0.8, 0.85, 0.95)
+		)
 
 	_update_ui()
 
@@ -387,6 +450,12 @@ func _reset_action_bar(team: String) -> void:
 
 func _on_restart_pressed() -> void:
 	_reset_battle()
+
+	turn_indicator_label.text = "COMBATTIMENTO IN CORSO"
+	turn_indicator_label.add_theme_color_override(
+		"font_color",
+		Color(0.8, 0.85, 0.95)
+	)
+
 	turn_label.text = "Le barre si stanno riempiendo..."
 	_update_ui()
-
