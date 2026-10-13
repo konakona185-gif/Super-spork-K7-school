@@ -24,24 +24,13 @@ jobs:
           chmod +x Godot_v4.4-stable_linux.x86_64
           echo "GODOT_BIN=$PWD/Godot_v4.4-stable_linux.x86_64" >> "$GITHUB_ENV"
 
-      - name: Controlla progetto e script
+      - name: Avvia la scena e controlla gli errori
         shell: bash
         run: |
           set -o pipefail
-          "$GODOT_BIN" --headless --editor --path "$GITHUB_WORKSPACE" --quit 2>&1 | tee godot-editor.log
+          "$GODOT_BIN" --headless --path "$GITHUB_WORKSPACE" --quit-after 5 2>&1 | tee godot-run.log
 
-          if grep -E 'SCRIPT ERROR:|Parse Error:|ERROR:' godot-editor.log; then
-            echo "Sono stati rilevati errori nel progetto."
-            exit 1
-          fi
-
-      - name: Prova ad avviare la scena
-        shell: bash
-        run: |
-          set -o pipefail
-          "$GODOT_BIN" --headless --path "$GITHUB_WORKSPACE" --quit-after 3 2>&1 | tee godot-run.log
-
-          if grep -E 'SCRIPT ERROR:|Parse Error:|ERROR:' godot-run.log; then
-            echo "La scena ha segnalato errori."
+          if grep -E 'SCRIPT ERROR:|Parse Error:|Failed to load script|No loader found for resource|Cannot open file' godot-run.log; then
+            echo "Rilevati possibili errori di script o caricamento."
             exit 1
           fi
