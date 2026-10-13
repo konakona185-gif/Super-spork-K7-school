@@ -3,13 +3,18 @@ class_name CombatManager
 
 const ACTION_BAR_MAX: float = 100.0
 const ABILITY_DATA_PATH: String = "res://data/abilities.json"
+const MAX_SKILL_POINTS: int = 5
+const STARTING_SKILL_POINTS: int = 3
+const MAX_ENERGY: int = 100
 
 var combatants: Array[Dictionary] = []
 var abilities: Array[Dictionary] = []
+var skill_points: int = STARTING_SKILL_POINTS
 
 
 func setup(party_data: Array, enemies_data: Array) -> void:
 	combatants.clear()
+	skill_points = STARTING_SKILL_POINTS
 	_load_ability_data()
 
 	for character in party_data:
@@ -160,6 +165,78 @@ func get_abilities_for_character(
 	return result
 
 
+func get_skill_points() -> int:
+	return skill_points
+
+
+func can_spend_skill_points(amount: int) -> bool:
+	return amount >= 0 and skill_points >= amount
+
+
+func spend_skill_points(amount: int) -> bool:
+	if not can_spend_skill_points(amount):
+		return false
+
+	skill_points -= amount
+	return true
+
+
+func restore_skill_points(amount: int) -> void:
+	if amount <= 0:
+		return
+
+	skill_points = mini(
+		MAX_SKILL_POINTS,
+		skill_points + amount
+	)
+
+
+func get_energy(combatant_id: String) -> int:
+	var fighter: Dictionary = get_combatant(combatant_id)
+
+	if fighter.is_empty():
+		return 0
+
+	return int(fighter.get("energy", 0))
+
+
+func add_energy(combatant_id: String, amount: int) -> void:
+	if amount <= 0:
+		return
+
+	for fighter in combatants:
+		if str(fighter["id"]) == combatant_id:
+			fighter["energy"] = mini(
+				MAX_ENERGY,
+				int(fighter.get("energy", 0)) + amount
+			)
+			return
+
+
+func can_use_ultimate(combatant_id: String) -> bool:
+	var fighter: Dictionary = get_combatant(combatant_id)
+
+	if fighter.is_empty():
+		return false
+
+	return (
+		bool(fighter["alive"])
+		and int(fighter.get("energy", 0)) >= MAX_ENERGY
+	)
+
+
+func spend_ultimate_energy(combatant_id: String) -> bool:
+	if not can_use_ultimate(combatant_id):
+		return false
+
+	for fighter in combatants:
+		if str(fighter["id"]) == combatant_id:
+			fighter["energy"] = 0
+			return true
+
+	return false
+
+
 func _add_combatant(data: Dictionary, team: String) -> void:
 	var stats: Dictionary = data["stats"]
 
@@ -175,6 +252,7 @@ func _add_combatant(data: Dictionary, team: String) -> void:
 		"max_hp": int(stats["hp"]),
 		"atk": int(stats["atk"]),
 		"def": int(stats.get("def", 0)),
+		"energy": 0,
 		"alive": true
 	})
 
@@ -206,7 +284,6 @@ func get_ready_combatants() -> Array[Dictionary]:
 		if float(fighter["action_bar"]) >= ACTION_BAR_MAX:
 			ready.append(fighter)
 
-	# Velocità decrescente; a parità mantiene l'ordine originale.
 	for i in range(1, ready.size()):
 		var current: Dictionary = ready[i]
 		var j: int = i - 1
