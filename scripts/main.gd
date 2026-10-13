@@ -44,6 +44,8 @@ var ally_hp_bars: Dictionary = {}
 var attack_button: Button
 var skill_button: Button
 var skill_points_label: Label
+var energy_label: Label
+var ultimate_button: Button
 var restart_button: Button
 
 
@@ -312,9 +314,9 @@ func _build_ui() -> void:
 	controls.anchor_right = 0.0
 	controls.anchor_bottom = 1.0
 	controls.offset_left = 16.0
-	controls.offset_top = -250.0
-	controls.offset_right = 376.0
-	controls.offset_bottom = -16.0
+	controls.offset_top = -310.0
+    controls.offset_right = 376.0
+    controls.offset_bottom = -16.0
 	canvas.add_child(controls)
 
 	var control_contents: VBoxContainer = VBoxContainer.new()
@@ -379,6 +381,18 @@ func _build_ui() -> void:
 	skill_button.custom_minimum_size = Vector2(0.0, 40.0)
 	skill_button.pressed.connect(_on_skill_pressed)
 	control_contents.add_child(skill_button)
+
+    energy_label = Label.new()
+    energy_label.name = "EnergyLabel"
+    energy_label.text = "Energia: 0 / 100"
+    control_contents.add_child(energy_label)
+
+    ultimate_button = Button.new()
+    ultimate_button.name = "UltimateButton"
+    ultimate_button.text = "Ultimate"
+    ultimate_button.custom_minimum_size = Vector2(0.0, 40.0)
+    ultimate_button.pressed.connect(_on_ultimate_pressed)
+    control_contents.add_child(ultimate_button)
 
 	restart_button = Button.new()
 	restart_button.text = "Ricomincia battaglia"
@@ -868,6 +882,10 @@ func _on_skill_pressed() -> void:
 	_use_hero_ability("skill")
 
 
+func _on_ultimate_pressed() -> void:
+	_use_hero_ability("ultimate")
+
+
 func _use_hero_ability(ability_type: String) -> void:
 	if battle_over or not waiting_for_hero_turn:
 		return
@@ -1050,6 +1068,42 @@ func _update_ui() -> void:
 			+ str(combat_manager.get_skill_points())
 			+ " / "
 			+ str(combat_manager.MAX_SKILL_POINTS)
+		)
+
+	if energy_label != null:
+		var energy_hero_id: String = active_hero_id
+
+		if energy_hero_id.is_empty():
+			for fighter_variant in combat_manager.get_combatants():
+				var fighter: Dictionary = fighter_variant
+
+				if (
+					str(fighter["team"]) == "hero"
+					and bool(fighter["alive"])
+				):
+					energy_hero_id = str(fighter["id"])
+					break
+
+		if energy_hero_id.is_empty():
+			energy_label.text = "Energia: -- / 100"
+		else:
+			var current_energy: int = combat_manager.get_energy(
+				energy_hero_id
+			)
+			energy_label.text = (
+				"Energia: "
+				+ str(current_energy)
+				+ " / "
+				+ str(combat_manager.MAX_ENERGY)
+			)
+
+	if ultimate_button != null:
+		ultimate_button.disabled = (
+			battle_over
+			or not waiting_for_hero_turn
+			or active_hero_id.is_empty()
+			or selected_enemy_id.is_empty()
+			or not combat_manager.can_use_ultimate(active_hero_id)
 		)
 
 	_update_action_bars()
