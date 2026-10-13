@@ -1,16 +1,15 @@
-
 extends Node3D
 
 const CombatManagerScript = preload("res://scripts/combat_manager.gd")
 
-var hero_data: Dictionary = {}
-var enemy_data: Dictionary = {}
+var party_data: Array = []
+var enemies_data: Array = []
 
-var hero_hp: int = 0
-var enemy_hp: int = 0
 var battle_over: bool = false
 var waiting_for_hero_turn: bool = false
 var waiting_for_enemy_turn: bool = false
+var active_hero_id: String = ""
+var active_enemy_id: String = ""
 
 var pending_turns: Array[Dictionary] = []
 
@@ -55,9 +54,6 @@ func _process(delta: float) -> void:
 
 	_update_action_bars()
 
-	# Cerca il prossimo turno ancora valido.
-	# Una barra azzerata o un combattente sconfitto
-	# rendono obsoleto il turno corrispondente.
 	while not pending_turns.is_empty():
 		var fighter: Dictionary = pending_turns.pop_front()
 
@@ -68,22 +64,19 @@ func _process(delta: float) -> void:
 			continue
 
 		if str(fighter["team"]) == "hero":
+			active_hero_id = str(fighter["id"])
 			waiting_for_hero_turn = true
 			turn_indicator_label.text = "▶ TURNO DEL GIOCATORE"
 			turn_indicator_label.add_theme_color_override(
 				"font_color",
 				Color(0.3, 0.85, 1.0)
 			)
-			turn_label.text = "Il tuo personaggio è pronto. Scegli Attacca."
+			turn_label.text = "%s è pronto. Scegli Attacca." % str(fighter["name"])
 			_update_ui()
 			return
 
 		waiting_for_enemy_turn = true
-		turn_indicator_label.text = "▶ TURNO DEL NEMICO"
-		turn_indicator_label.add_theme_color_override(
-			"font_color",
-			Color(1.0, 0.4, 0.3)
-		)
+		active_enemy_id = str(fighter["id"])
 		_enemy_turn(fighter)
 		return
 
@@ -113,66 +106,92 @@ func _load_character_data() -> bool:
 		push_error("Il contenuto JSON deve essere un oggetto.")
 		return false
 
-	if not content.has("hero") or not content.has("enemy"):
-		push_error("Il JSON deve contenere hero ed enemy.")
+	if not content.has("party") or not content.has("enemies"):
+		push_error("Il JSON deve contenere party ed enemies.")
 		return false
 
-	hero_data = content["hero"]
-	enemy_data = content["enemy"]
-
-	if not hero_data is Dictionary or not enemy_data is Dictionary:
-		push_error("Dati dei combattenti non validi.")
+	if not content["party"] is Array or not content["enemies"] is Array:
+		push_error("Party ed enemies devono essere elenchi.")
 		return false
 
-	for fighter_data in [hero_data, enemy_data]:
-		if not fighter_data.has("id") or not fighter_data.has("name"):
-			push_error("Mancano nome o ID di un combattente.")
-			return false
+	party_data = content["party"]
+	enemies_data = content["enemies"]
 
-		if not fighter_data.has("stats"):
-			push_error("Mancano le statistiche di un combattente.")
-			return false
+	if party_data.is_empty() or enemies_data.is_empty():
+		push_error("Serve almeno un alleato e un nemico.")
+		return false
 
-		if not fighter_data["stats"] is Dictionary:
-			push_error("Il campo stats deve essere un oggetto.")
-			return false
+	if party_data.size() > 4 or enemies_data.size() > 4:
+		push_error("Sono consentiti al massimo quattro alleati e quattro nemici.")
+		return false
 
-		var stats: Dictionary = fighter_data["stats"]
+	var used_ids: Dictionary = {}
 
-		for key in ["hp", "attack_min", "attack_max", "speed"]:
-			if not stats.has(key):
-				push_error("Statistica mancante: " + key)
+	for group in [party_data, enemies_data]:
+		for fighter_data in group:
+			if not fighter_data is Dictionary:
+				push_error("Un combattente non è un oggetto valido.")
 				return false
 
-		if int(stats["hp"]) <= 0:
-			push_error("Gli HP devono essere maggiori di zero.")
-			return false
+			for key in ["id", "name", "stats"]:
+				if not fighter_data.has(key):
+					push_error("Manca il campo obbligatorio: " + key)
+					return false
 
-		if int(stats["attack_min"]) < 0:
-			push_error("L'attacco minimo non può essere negativo.")
-			return false
+			var fighter_id: String = str(fighter_data["id"])
 
-		if int(stats["attack_min"]) > int(stats["attack_max"]):
-			push_error("Intervallo di attacco non valido.")
-			return false
+			if used_ids.has(fighter_id):
+				push_error("ID duplicato: " + fighter_id)
+				return false
 
-		if float(stats["speed"]) <= 0.0:
-			push_error("La Velocità deve essere maggiore di zero.")
-			return false
+			used_ids[fighter_id] = true
+
+			if not fighter_data["stats"] is Dictionary:
+				push_error("Il campo stats deve essere un oggetto.")
+				return false
+
+			var stats: Dictionary = fighter_data["stats"]
+
+			for key in ["hp", "atk", "def", "speed"]:
+				if not stats.has(key):
+					push_error("Statistica mancante: " + key)
+					return false
+
+			if int(stats["hp"]) <= 0:
+				push_error("Gli HP devono essere maggiori di zero.")
+				return false
+
+			if int(stats["atk"]) < 0 or int(stats["def"]) < 0:
+				push_error("ATK e DEF non possono essere negativi.")
+				return false
+
+			if float(stats["speed"]) <= 0.0:
+				push_error("La Velocità deve essere maggiore di zero.")
+				return false
+
+			if fighter_data.has("role"):
+				if not str(fighter_data["role"]) in ["DPS", "Support", "Tank"]:
+					push_error("Ruolo non valido: " + str(fighter_data["role"]))
+					return false
+
+			if fighter_data.has("scaling"):
+				if not fighter_data["scaling"] is Array:
+					push_error("Scaling deve essere un elenco.")
+					return false
 
 	return true
 
 
 func _reset_battle() -> void:
-	hero_hp = int(hero_data["stats"]["hp"])
-	enemy_hp = int(enemy_data["stats"]["hp"])
 	battle_over = false
 	waiting_for_hero_turn = false
 	waiting_for_enemy_turn = false
+	active_hero_id = ""
+	active_enemy_id = ""
 	pending_turns.clear()
 
 	combat_manager = CombatManagerScript.new()
-	combat_manager.setup(hero_data, enemy_data)
+	combat_manager.setup(party_data, enemies_data)
 
 	if is_instance_valid(attack_button):
 		attack_button.text = "Attacca"
@@ -262,7 +281,7 @@ func _build_ui() -> void:
 	layout.add_child(HSeparator.new())
 
 	var hero_title := Label.new()
-	hero_title.text = "AVVENTURIERO — BARRA D'AZIONE"
+	hero_title.text = "ALLEATO ATTIVO — BARRA D'AZIONE"
 	layout.add_child(hero_title)
 
 	hero_action_bar = ProgressBar.new()
@@ -276,7 +295,7 @@ func _build_ui() -> void:
 	layout.add_child(hero_bar_label)
 
 	var enemy_title := Label.new()
-	enemy_title.text = "SLIME CREMISI — BARRA D'AZIONE"
+	enemy_title.text = "NEMICO ATTIVO — BARRA D'AZIONE"
 	layout.add_child(enemy_title)
 
 	enemy_action_bar = ProgressBar.new()
@@ -322,25 +341,15 @@ func _update_ui() -> void:
 	if combat_manager == null:
 		return
 
-	var hero_stats: Dictionary = hero_data["stats"]
-	var enemy_stats: Dictionary = enemy_data["stats"]
+	status_label.text = "ALLEATI\n" + _format_team_status("hero")
+	status_label.text += "\n\nNEMICI\n" + _format_team_status("enemy")
 
-	status_label.text = (
-		"%s: %d / %d HP | Velocità: %d\n" +
-		"%s: %d / %d HP | Velocità: %d"
-	) % [
-		str(hero_data["name"]),
-		hero_hp,
-		int(hero_stats["hp"]),
-		int(hero_stats["speed"]),
-		str(enemy_data["name"]),
-		enemy_hp,
-		int(enemy_stats["hp"]),
-		int(enemy_stats["speed"])
-	]
+	attack_button.visible = not battle_over
+	attack_button.disabled = not waiting_for_hero_turn
+	restart_button.visible = battle_over
 
 	if battle_over:
-		if hero_hp <= 0:
+		if _get_alive_count("hero") == 0:
 			turn_indicator_label.text = "SCONFITTA"
 			turn_indicator_label.add_theme_color_override(
 				"font_color",
@@ -353,67 +362,115 @@ func _update_ui() -> void:
 				Color(0.3, 1.0, 0.5)
 			)
 
-		status_label.text += "\n\nCOMBATTIMENTO TERMINATO"
-
-	attack_button.visible = not battle_over
-	attack_button.disabled = not waiting_for_hero_turn
-	restart_button.visible = battle_over
-
 	_update_action_bars()
+
+
+func _format_team_status(team: String) -> String:
+	var lines: PackedStringArray = []
+
+	for fighter in combat_manager.get_combatants():
+		if str(fighter["team"]) != team:
+			continue
+
+		lines.append(
+			"%s — %d/%d HP | ATK %d | DEF %d | SPD %d" % [
+				str(fighter["name"]),
+				int(fighter["hp"]),
+				int(fighter["max_hp"]),
+				int(fighter["atk"]),
+				int(fighter["def"]),
+				int(fighter["speed"])
+			]
+		)
+
+	return "\n".join(lines)
 
 
 func _update_action_bars() -> void:
 	if combat_manager == null:
 		return
 
+	var hero := combat_manager.get_combatant(active_hero_id)
+	if hero.is_empty():
+		hero = _get_first_alive_combatant("hero")
+
+	var enemy := combat_manager.get_combatant(active_enemy_id)
+	if enemy.is_empty():
+		enemy = _get_first_alive_combatant("enemy")
+
+	if not hero.is_empty():
+		var hero_progress: float = float(hero["action_bar"])
+		hero_action_bar.value = hero_progress
+		hero_bar_label.text = "%s: %d%%" % [
+			str(hero["name"]),
+			int(round(hero_progress))
+		]
+		hero_action_bar.modulate = (
+			Color(1.0, 0.85, 0.35)
+			if waiting_for_hero_turn
+			else Color.WHITE
+		)
+
+	if not enemy.is_empty():
+		var enemy_progress: float = float(enemy["action_bar"])
+		enemy_action_bar.value = enemy_progress
+		enemy_bar_label.text = "%s: %d%%" % [
+			str(enemy["name"]),
+			int(round(enemy_progress))
+		]
+		enemy_action_bar.modulate = (
+			Color(1.0, 0.75, 0.65)
+			if waiting_for_enemy_turn
+			else Color.WHITE
+		)
+
+
+func _get_first_alive_combatant(team: String) -> Dictionary:
 	for fighter in combat_manager.get_combatants():
-		var progress: float = float(fighter["action_bar"])
-		var team: String = str(fighter["team"])
+		if str(fighter["team"]) == team and bool(fighter["alive"]):
+			return fighter
 
-		if team == "hero":
-			hero_action_bar.value = progress
-			hero_bar_label.text = "Avanzamento: %d%%" % int(round(progress))
-			hero_action_bar.modulate = (
-				Color(1.0, 0.85, 0.35)
-				if waiting_for_hero_turn
-				else Color.WHITE
-			)
+	return {}
 
-		elif team == "enemy":
-			enemy_action_bar.value = progress
-			enemy_bar_label.text = "Avanzamento: %d%%" % int(round(progress))
-			enemy_action_bar.modulate = (
-				Color(1.0, 0.75, 0.65)
-				if waiting_for_enemy_turn
-				else Color.WHITE
-			)
+
+func _get_alive_count(team: String) -> int:
+	var count: int = 0
+
+	for fighter in combat_manager.get_combatants():
+		if str(fighter["team"]) == team and bool(fighter["alive"]):
+			count += 1
+
+	return count
 
 
 func _on_attack_pressed() -> void:
 	if battle_over or not waiting_for_hero_turn:
 		return
 
-	var hero_stats: Dictionary = hero_data["stats"]
-	var damage: int = rng.randi_range(
-		int(hero_stats["attack_min"]),
-		int(hero_stats["attack_max"])
-	)
+	var hero: Dictionary = combat_manager.get_combatant(active_hero_id)
+	var enemy: Dictionary = _get_first_alive_combatant("enemy")
 
-	enemy_hp = maxi(0, enemy_hp - damage)
-	combat_manager.set_hp(str(enemy_data["id"]), enemy_hp)
+	if hero.is_empty() or enemy.is_empty():
+		return
 
-	turn_label.text = "%s infligge %d danni!" % [
-		str(hero_data["name"]),
-		damage
+	var damage: int = maxi(1, int(hero["atk"]) - int(enemy["def"]))
+	var new_hp: int = maxi(0, int(enemy["hp"]) - damage)
+
+	combat_manager.set_hp(str(enemy["id"]), new_hp)
+	turn_label.text = "%s infligge %d danni a %s!" % [
+		str(hero["name"]),
+		damage,
+		str(enemy["name"])
 	]
 
+	combat_manager.reset_action_bar(active_hero_id)
 	waiting_for_hero_turn = false
-	combat_manager.reset_action_bar(str(hero_data["id"]))
+	active_hero_id = ""
 
-	if enemy_hp <= 0:
+	if _get_alive_count("enemy") == 0:
 		battle_over = true
 		pending_turns.clear()
-		turn_label.text += "\nIl nemico è stato sconfitto!"
+		turn_label.text += "\nTutti i nemici sono stati sconfitti!"
 	else:
 		turn_indicator_label.text = "COMBATTIMENTO IN CORSO"
 		turn_indicator_label.add_theme_color_override(
@@ -425,27 +482,33 @@ func _on_attack_pressed() -> void:
 
 
 func _enemy_turn(fighter: Dictionary) -> void:
-	var enemy_stats: Dictionary = enemy_data["stats"]
-	var damage: int = rng.randi_range(
-		int(enemy_stats["attack_min"]),
-		int(enemy_stats["attack_max"])
-	)
+	var target: Dictionary = _get_first_alive_combatant("hero")
 
-	hero_hp = maxi(0, hero_hp - damage)
-	combat_manager.set_hp(str(hero_data["id"]), hero_hp)
+	if target.is_empty():
+		battle_over = true
+		waiting_for_enemy_turn = false
+		pending_turns.clear()
+		_update_ui()
+		return
 
-	turn_label.text = "%s infligge %d danni!" % [
-		str(enemy_data["name"]),
-		damage
+	var damage: int = maxi(1, int(fighter["atk"]) - int(target["def"]))
+	var new_hp: int = maxi(0, int(target["hp"]) - damage)
+
+	combat_manager.set_hp(str(target["id"]), new_hp)
+	turn_label.text = "%s infligge %d danni a %s!" % [
+		str(fighter["name"]),
+		damage,
+		str(target["name"])
 	]
 
 	combat_manager.reset_action_bar(str(fighter["id"]))
 	waiting_for_enemy_turn = false
+	active_enemy_id = ""
 
-	if hero_hp <= 0:
+	if _get_alive_count("hero") == 0:
 		battle_over = true
 		pending_turns.clear()
-		turn_label.text += "\nIl tuo eroe è stato sconfitto!"
+		turn_label.text += "\nTutti gli alleati sono stati sconfitti!"
 	else:
 		turn_indicator_label.text = "COMBATTIMENTO IN CORSO"
 		turn_indicator_label.add_theme_color_override(
@@ -464,6 +527,10 @@ func _on_restart_pressed() -> void:
 		"font_color",
 		Color(0.8, 0.85, 0.95)
 	)
+
+	turn_label.text = "Le barre si stanno riempiendo..."
+	_update_ui()
+
 
 	turn_label.text = "Le barre si stanno riempiendo..."
 	_update_ui()
