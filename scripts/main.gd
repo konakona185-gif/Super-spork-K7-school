@@ -1,3 +1,4 @@
+
 extends Node3D
 
 const CombatManagerScript = preload("res://scripts/combat_manager.gd")
@@ -382,7 +383,7 @@ func _build_ui() -> void:
 	skill_button.pressed.connect(_on_skill_pressed)
 	control_contents.add_child(skill_button)
 
-   	energy_label = Label.new()
+	energy_label = Label.new()
 	energy_label.name = "EnergyLabel"
 	energy_label.text = "Energia: 0 / 100"
 	control_contents.add_child(energy_label)
