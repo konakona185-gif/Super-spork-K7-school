@@ -5,6 +5,10 @@ const CHARACTER_DATA_PATH: String = "res://data/characters.json"
 const MAX_ALLIES: int = 4
 const MAX_ENEMIES: int = 5
 
+const HP_BAR_WIDTH: float = 0.95
+const HP_BAR_HEIGHT: float = 0.09
+const HP_BAR_Y: float = 1.85
+
 var combat_manager = CombatManagerScript.new()
 
 var party_data: Array = []
@@ -20,6 +24,8 @@ var selected_enemy_id: String = ""
 
 var pending_turns: Array[Dictionary] = []
 var fighter_meshes: Dictionary = {}
+var fighter_hp_bars: Dictionary = {}
+var fighter_hp_fills: Dictionary = {}
 
 var status_label: Label
 var turn_label: Label
@@ -69,7 +75,6 @@ func _process(delta: float) -> void:
 
 	var fighter: Dictionary = pending_turns.pop_front()
 	var fighter_id: String = str(fighter["id"])
-
 	var current_fighter: Dictionary = combat_manager.get_combatant(fighter_id)
 
 	if current_fighter.is_empty() or not bool(current_fighter["alive"]):
@@ -199,7 +204,6 @@ func _build_arena() -> void:
 	ground_material.albedo_color = Color(0.18, 0.20, 0.24)
 	ground_material.roughness = 1.0
 	ground.material_override = ground_material
-
 	add_child(ground)
 
 	var camera: Camera3D = Camera3D.new()
@@ -280,20 +284,14 @@ func _build_ui() -> void:
 	hero_title.text = "Barra d'azione alleato"
 	panel_contents.add_child(hero_title)
 
-	hero_bar = ProgressBar.new()
-	hero_bar.custom_minimum_size = Vector2(300.0, 18.0)
-	hero_bar.max_value = 100.0
-	hero_bar.show_percentage = true
+	hero_bar = _create_action_bar()
 	panel_contents.add_child(hero_bar)
 
 	var enemy_title: Label = Label.new()
 	enemy_title.text = "Barra d'azione nemico"
 	panel_contents.add_child(enemy_title)
 
-	enemy_bar = ProgressBar.new()
-	enemy_bar.custom_minimum_size = Vector2(300.0, 18.0)
-	enemy_bar.max_value = 100.0
-	enemy_bar.show_percentage = true
+	enemy_bar = _create_action_bar()
 	panel_contents.add_child(enemy_bar)
 
 	var controls: PanelContainer = PanelContainer.new()
@@ -339,6 +337,25 @@ func _build_ui() -> void:
 	control_contents.add_child(restart_button)
 
 
+func _create_action_bar() -> ProgressBar:
+	var bar: ProgressBar = ProgressBar.new()
+	bar.custom_minimum_size = Vector2(300.0, 18.0)
+	bar.max_value = 100.0
+	bar.show_percentage = true
+
+	var background_style: StyleBoxFlat = StyleBoxFlat.new()
+	background_style.bg_color = Color(0.12, 0.14, 0.18)
+	background_style.set_corner_radius_all(3)
+	bar.add_theme_stylebox_override("background", background_style)
+
+	var fill_style: StyleBoxFlat = StyleBoxFlat.new()
+	fill_style.bg_color = Color(0.12, 0.42, 1.0)
+	fill_style.set_corner_radius_all(3)
+	bar.add_theme_stylebox_override("fill", fill_style)
+
+	return bar
+
+
 func _reset_battle() -> void:
 	battle_over = false
 	waiting_for_hero_turn = false
@@ -361,6 +378,8 @@ func _create_fighter_visuals() -> void:
 			fighter_node.queue_free()
 
 	fighter_meshes.clear()
+	fighter_hp_bars.clear()
+	fighter_hp_fills.clear()
 
 	var allies: Array[Dictionary] = []
 	var enemies: Array[Dictionary] = []
@@ -375,13 +394,13 @@ func _create_fighter_visuals() -> void:
 
 	for i in range(allies.size()):
 		var ally: Dictionary = allies[i]
-		var position: Vector3 = _get_formation_position("hero", i, allies.size())
-		_create_fighter_model(ally, position)
+		var ally_position: Vector3 = _get_formation_position("hero", i, allies.size())
+		_create_fighter_model(ally, ally_position)
 
 	for i in range(enemies.size()):
 		var enemy: Dictionary = enemies[i]
-		var position: Vector3 = _get_formation_position("enemy", i, enemies.size())
-		_create_fighter_model(enemy, position)
+		var enemy_position: Vector3 = _get_formation_position("enemy", i, enemies.size())
+		_create_fighter_model(enemy, enemy_position)
 
 	_update_fighter_visuals()
 
@@ -425,9 +444,50 @@ func _create_fighter_model(fighter: Dictionary, fighter_position: Vector3) -> vo
 
 	material.roughness = 0.7
 	model.material_override = material
-
 	add_child(model)
+
 	fighter_meshes[fighter_id] = model
+	_create_fighter_hp_bar(fighter, model)
+
+
+func _create_fighter_hp_bar(fighter: Dictionary, model: MeshInstance3D) -> void:
+	var fighter_id: String = str(fighter["id"])
+
+	var bar_root: Node3D = Node3D.new()
+	bar_root.name = "HPBar_" + fighter_id
+	bar_root.position = Vector3(0.0, HP_BAR_Y, 0.0)
+	model.add_child(bar_root)
+
+	var background: MeshInstance3D = MeshInstance3D.new()
+	background.name = "HPBackground"
+
+	var background_mesh: BoxMesh = BoxMesh.new()
+	background_mesh.size = Vector3(HP_BAR_WIDTH, HP_BAR_HEIGHT, 0.035)
+	background.mesh = background_mesh
+
+	var background_material: StandardMaterial3D = StandardMaterial3D.new()
+	background_material.albedo_color = Color(0.08, 0.08, 0.08)
+	background_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	background_material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	background.material_override = background_material
+	bar_root.add_child(background)
+
+	var fill: MeshInstance3D = MeshInstance3D.new()
+	fill.name = "HPFill"
+
+	var fill_mesh: BoxMesh = BoxMesh.new()
+	fill_mesh.size = Vector3(HP_BAR_WIDTH, HP_BAR_HEIGHT, 0.045)
+	fill.mesh = fill_mesh
+
+	var fill_material: StandardMaterial3D = StandardMaterial3D.new()
+	fill_material.albedo_color = Color(0.12, 0.88, 0.22)
+	fill_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fill_material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	fill.material_override = fill_material
+	bar_root.add_child(fill)
+
+	fighter_hp_bars[fighter_id] = bar_root
+	fighter_hp_fills[fighter_id] = fill
 
 
 func _update_fighter_visuals() -> void:
@@ -453,6 +513,30 @@ func _update_fighter_visuals() -> void:
 
 			model.scale = Vector3.ONE
 			model.position.y = 0.78
+
+		_update_fighter_hp_bar(fighter_id, fighter)
+
+
+func _update_fighter_hp_bar(fighter_id: String, fighter: Dictionary) -> void:
+	if not fighter_hp_fills.has(fighter_id):
+		return
+
+	var fill: MeshInstance3D = fighter_hp_fills[fighter_id]
+
+	if not is_instance_valid(fill):
+		return
+
+	var max_hp: float = maxf(1.0, float(fighter["max_hp"]))
+	var current_hp: float = clampf(float(fighter["hp"]), 0.0, max_hp)
+	var ratio: float = current_hp / max_hp
+
+	fill.scale.x = ratio
+	fill.position.x = -(HP_BAR_WIDTH * (1.0 - ratio)) / 2.0
+
+	if not bool(fighter["alive"]):
+		fill.visible = false
+	else:
+		fill.visible = true
 
 
 func _refresh_target_options() -> void:
