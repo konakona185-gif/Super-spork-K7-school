@@ -10,6 +10,7 @@ var hero_hp: int = 0
 var enemy_hp: int = 0
 var battle_over: bool = false
 var waiting_for_hero_turn: bool = false
+var waiting_for_enemy_turn: bool = false
 
 var rng := RandomNumberGenerator.new()
 var combat_manager
@@ -44,11 +45,10 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if battle_over or waiting_for_hero_turn:
+	if battle_over or waiting_for_hero_turn or waiting_for_enemy_turn:
 		return
 
 	var ready_fighter: Dictionary = combat_manager.advance_time(delta)
-
 	_update_action_bars()
 
 	if ready_fighter.is_empty():
@@ -62,14 +62,16 @@ func _process(delta: float) -> void:
 			Color(0.3, 0.85, 1.0)
 		)
 		turn_label.text = "Il tuo personaggio è pronto. Scegli Attacca."
-		_update_ui()
 	else:
+		waiting_for_enemy_turn = true
 		turn_indicator_label.text = "▶ TURNO DEL NEMICO"
 		turn_indicator_label.add_theme_color_override(
 			"font_color",
 			Color(1.0, 0.4, 0.3)
 		)
 		_enemy_turn(ready_fighter)
+
+	_update_ui()
 
 
 func _load_character_data() -> bool:
@@ -152,6 +154,7 @@ func _reset_battle() -> void:
 	enemy_hp = int(enemy_data["stats"]["hp"])
 	battle_over = false
 	waiting_for_hero_turn = false
+	waiting_for_enemy_turn = false
 
 	combat_manager = CombatManagerScript.new()
 	combat_manager.setup(hero_data, enemy_data)
@@ -241,8 +244,7 @@ func _build_ui() -> void:
 	status_label = Label.new()
 	layout.add_child(status_label)
 
-	var separator := HSeparator.new()
-	layout.add_child(separator)
+	layout.add_child(HSeparator.new())
 
 	var hero_title := Label.new()
 	hero_title.text = "AVVENTURIERO — BARRA D'AZIONE"
@@ -251,7 +253,6 @@ func _build_ui() -> void:
 	hero_action_bar = ProgressBar.new()
 	hero_action_bar.min_value = 0.0
 	hero_action_bar.max_value = 100.0
-	hero_action_bar.value = 0.0
 	hero_action_bar.show_percentage = false
 	hero_action_bar.custom_minimum_size = Vector2(320, 26)
 	layout.add_child(hero_action_bar)
@@ -266,7 +267,6 @@ func _build_ui() -> void:
 	enemy_action_bar = ProgressBar.new()
 	enemy_action_bar.min_value = 0.0
 	enemy_action_bar.max_value = 100.0
-	enemy_action_bar.value = 0.0
 	enemy_action_bar.show_percentage = false
 	enemy_action_bar.custom_minimum_size = Vector2(320, 26)
 	layout.add_child(enemy_action_bar)
@@ -274,8 +274,7 @@ func _build_ui() -> void:
 	enemy_bar_label = Label.new()
 	layout.add_child(enemy_bar_label)
 
-	var turn_separator := HSeparator.new()
-	layout.add_child(turn_separator)
+	layout.add_child(HSeparator.new())
 
 	turn_indicator_label = Label.new()
 	turn_indicator_label.text = "COMBATTIMENTO IN CORSO"
@@ -359,20 +358,20 @@ func _update_action_bars() -> void:
 		if team == "hero":
 			hero_action_bar.value = progress
 			hero_bar_label.text = "Avanzamento: %d%%" % int(round(progress))
-
-			if waiting_for_hero_turn:
-				hero_action_bar.modulate = Color(1.0, 0.85, 0.35)
-			else:
-				hero_action_bar.modulate = Color.WHITE
+			hero_action_bar.modulate = (
+				Color(1.0, 0.85, 0.35)
+				if waiting_for_hero_turn
+				else Color.WHITE
+			)
 
 		elif team == "enemy":
 			enemy_action_bar.value = progress
 			enemy_bar_label.text = "Avanzamento: %d%%" % int(round(progress))
-
-			if not waiting_for_hero_turn and progress >= 100.0:
-				enemy_action_bar.modulate = Color(1.0, 0.75, 0.65)
-			else:
-				enemy_action_bar.modulate = Color.WHITE
+			enemy_action_bar.modulate = (
+				Color(1.0, 0.75, 0.65)
+				if waiting_for_enemy_turn
+				else Color.WHITE
+			)
 
 
 func _on_attack_pressed() -> void:
@@ -380,7 +379,6 @@ func _on_attack_pressed() -> void:
 		return
 
 	var hero_stats: Dictionary = hero_data["stats"]
-
 	var damage: int = rng.randi_range(
 		int(hero_stats["attack_min"]),
 		int(hero_stats["attack_max"])
@@ -395,7 +393,7 @@ func _on_attack_pressed() -> void:
 	]
 
 	waiting_for_hero_turn = false
-	_reset_action_bar("hero")
+	combat_manager.reset_action_bar(str(hero_data["id"]))
 
 	if enemy_hp <= 0:
 		battle_over = true
@@ -410,9 +408,8 @@ func _on_attack_pressed() -> void:
 	_update_ui()
 
 
-func _enemy_turn(_fighter: Dictionary) -> void:
+func _enemy_turn(fighter: Dictionary) -> void:
 	var enemy_stats: Dictionary = enemy_data["stats"]
-
 	var damage: int = rng.randi_range(
 		int(enemy_stats["attack_min"]),
 		int(enemy_stats["attack_max"])
@@ -426,7 +423,8 @@ func _enemy_turn(_fighter: Dictionary) -> void:
 		damage
 	]
 
-	_reset_action_bar("enemy")
+	combat_manager.reset_action_bar(str(fighter["id"]))
+	waiting_for_enemy_turn = false
 
 	if hero_hp <= 0:
 		battle_over = true
@@ -439,13 +437,6 @@ func _enemy_turn(_fighter: Dictionary) -> void:
 		)
 
 	_update_ui()
-
-
-func _reset_action_bar(team: String) -> void:
-	if team == "hero":
-		combat_manager.reset_action_bar(str(hero_data["id"]))
-	elif team == "enemy":
-		combat_manager.reset_action_bar(str(enemy_data["id"]))
 
 
 func _on_restart_pressed() -> void:
