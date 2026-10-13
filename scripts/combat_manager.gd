@@ -1,4 +1,3 @@
-
 extends RefCounted
 class_name CombatManager
 
@@ -16,6 +15,31 @@ var skill_points: int = STARTING_SKILL_POINTS
 func setup(party_data: Array, enemies_data: Array) -> void:
 	combatants.clear()
 	skill_points = STARTING_SKILL_POINTS
+
+	var used_ids: Dictionary = {}
+
+	for character in party_data:
+		var error_message: String = _get_combatant_data_error(
+			character,
+			used_ids
+		)
+
+		if not error_message.is_empty():
+			push_error("Dati eroe non validi: " + error_message)
+			combatants.clear()
+			return
+
+	for enemy in enemies_data:
+		var error_message: String = _get_combatant_data_error(
+			enemy,
+			used_ids
+		)
+
+		if not error_message.is_empty():
+			push_error("Dati nemico non validi: " + error_message)
+			combatants.clear()
+			return
+
 	_load_ability_data()
 
 	for character in party_data:
@@ -23,6 +47,67 @@ func setup(party_data: Array, enemies_data: Array) -> void:
 
 	for enemy in enemies_data:
 		_add_combatant(enemy, "enemy")
+
+
+func _get_combatant_data_error(
+	data: Variant,
+	used_ids: Dictionary
+) -> String:
+	if not data is Dictionary:
+		return "Il combattente deve essere un oggetto."
+
+	var combatant_data: Dictionary = data
+
+	if (
+		not combatant_data.has("id")
+		or str(combatant_data["id"]).strip_edges().is_empty()
+	):
+		return "ID mancante o vuoto."
+
+	if (
+		not combatant_data.has("name")
+		or str(combatant_data["name"]).strip_edges().is_empty()
+	):
+		return "Nome mancante o vuoto."
+
+	if (
+		not combatant_data.has("stats")
+		or not combatant_data["stats"] is Dictionary
+	):
+		return "Statistiche mancanti o non valide."
+
+	var stats: Dictionary = combatant_data["stats"]
+
+	if not stats.has("hp") or not stats.has("atk"):
+		return "Le statistiche hp e atk sono obbligatorie."
+
+	if not stats["hp"] is int or int(stats["hp"]) <= 0:
+		return "HP deve essere un intero maggiore di zero."
+
+	if not stats["atk"] is int or int(stats["atk"]) < 0:
+		return "ATK deve essere un intero non negativo."
+
+	if stats.has("def"):
+		if not stats["def"] is int or int(stats["def"]) < 0:
+			return "DEF deve essere un intero non negativo."
+
+	if stats.has("speed"):
+		if not (
+			stats["speed"] is int
+			or stats["speed"] is float
+		):
+			return "Speed deve essere un numero."
+
+		if float(stats["speed"]) <= 0.0:
+			return "Speed deve essere maggiore di zero."
+
+	var combatant_id: String = str(combatant_data["id"])
+
+	if used_ids.has(combatant_id):
+		return "ID combattente duplicato: " + combatant_id
+
+	used_ids[combatant_id] = true
+	return ""
 
 
 func _load_ability_data() -> void:
