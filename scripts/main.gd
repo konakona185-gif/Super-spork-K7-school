@@ -50,31 +50,34 @@ func _process(delta: float) -> void:
 	if battle_over or waiting_for_hero_turn or waiting_for_enemy_turn:
 		return
 
-	# Avanza il tempo solo quando non ci sono turni già pronti.
 	if pending_turns.is_empty():
 		pending_turns = combat_manager.advance_time(delta)
 
 	_update_action_bars()
 
-	if pending_turns.is_empty():
-		return
+	# Cerca il prossimo turno ancora valido.
+	# Una barra azzerata o un combattente sconfitto
+	# rendono obsoleto il turno corrispondente.
+	while not pending_turns.is_empty():
+		var fighter: Dictionary = pending_turns.pop_front()
 
-	# Prende il prossimo combattente senza perdere gli altri turni pronti.
-	var fighter: Dictionary = pending_turns.pop_front()
+		if not bool(fighter["alive"]):
+			continue
 
-	if not bool(fighter["alive"]):
-		return
+		if float(fighter["action_bar"]) < CombatManagerScript.ACTION_BAR_MAX:
+			continue
 
-	if str(fighter["team"]) == "hero":
-		waiting_for_hero_turn = true
-		turn_indicator_label.text = "▶ TURNO DEL GIOCATORE"
-		turn_indicator_label.add_theme_color_override(
-			"font_color",
-			Color(0.3, 0.85, 1.0)
-		)
-		turn_label.text = "Il tuo personaggio è pronto. Scegli Attacca."
-		_update_ui()
-	else:
+		if str(fighter["team"]) == "hero":
+			waiting_for_hero_turn = true
+			turn_indicator_label.text = "▶ TURNO DEL GIOCATORE"
+			turn_indicator_label.add_theme_color_override(
+				"font_color",
+				Color(0.3, 0.85, 1.0)
+			)
+			turn_label.text = "Il tuo personaggio è pronto. Scegli Attacca."
+			_update_ui()
+			return
+
 		waiting_for_enemy_turn = true
 		turn_indicator_label.text = "▶ TURNO DEL NEMICO"
 		turn_indicator_label.add_theme_color_override(
@@ -82,6 +85,7 @@ func _process(delta: float) -> void:
 			Color(1.0, 0.4, 0.3)
 		)
 		_enemy_turn(fighter)
+		return
 
 
 func _load_character_data() -> bool:
@@ -463,4 +467,3 @@ func _on_restart_pressed() -> void:
 
 	turn_label.text = "Le barre si stanno riempiendo..."
 	_update_ui()
-
