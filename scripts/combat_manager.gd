@@ -1,4 +1,3 @@
-
 extends RefCounted
 class_name CombatManager
 
@@ -7,10 +6,14 @@ const ACTION_BAR_MAX: float = 100.0
 var combatants: Array[Dictionary] = []
 
 
-func setup(hero_data: Dictionary, enemy_data: Dictionary) -> void:
+func setup(party_data: Array, enemies_data: Array) -> void:
 	combatants.clear()
-	_add_combatant(hero_data, "hero")
-	_add_combatant(enemy_data, "enemy")
+
+	for character in party_data:
+		_add_combatant(character, "hero")
+
+	for enemy in enemies_data:
+		_add_combatant(enemy, "enemy")
 
 
 func _add_combatant(data: Dictionary, team: String) -> void:
@@ -20,9 +23,14 @@ func _add_combatant(data: Dictionary, team: String) -> void:
 		"id": str(data["id"]),
 		"name": str(data["name"]),
 		"team": team,
+		"role": str(data.get("role", "DPS")),
+		"scaling": data.get("scaling", ["ATK"]),
 		"speed": maxf(1.0, float(stats.get("speed", 1))),
 		"action_bar": 0.0,
 		"hp": int(stats["hp"]),
+		"max_hp": int(stats["hp"]),
+		"atk": int(stats["atk"]),
+		"def": int(stats.get("def", 0)),
 		"alive": true
 	})
 
@@ -54,8 +62,7 @@ func get_ready_combatants() -> Array[Dictionary]:
 		if float(fighter["action_bar"]) >= ACTION_BAR_MAX:
 			ready.append(fighter)
 
-	# Ordina per Velocità decrescente.
-	# In caso di parità, mantiene l'ordine originale.
+	# Velocità decrescente; a parità mantiene l'ordine originale.
 	for i in range(1, ready.size()):
 		var current: Dictionary = ready[i]
 		var j: int = i - 1
@@ -84,9 +91,17 @@ func reset_action_bar(combatant_id: String) -> void:
 func set_hp(combatant_id: String, new_hp: int) -> void:
 	for fighter in combatants:
 		if str(fighter["id"]) == combatant_id:
-			fighter["hp"] = maxi(0, new_hp)
-			fighter["alive"] = new_hp > 0
+			fighter["hp"] = clampi(new_hp, 0, int(fighter["max_hp"]))
+			fighter["alive"] = fighter["hp"] > 0
 			return
+
+
+func get_combatant(combatant_id: String) -> Dictionary:
+	for fighter in combatants:
+		if str(fighter["id"]) == combatant_id:
+			return fighter
+
+	return {}
 
 
 func get_combatants() -> Array[Dictionary]:
