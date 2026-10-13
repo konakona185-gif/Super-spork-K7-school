@@ -1,4 +1,3 @@
-
 extends Node3D
 
 const CombatManagerScript = preload("res://scripts/combat_manager.gd")
@@ -834,9 +833,11 @@ func _refresh_target_options() -> void:
 	if target_selector == null:
 		return
 
-	target_selector.clear()
-
+	var previous_target_id: String = selected_enemy_id
+	var selected_index: int = -1
 	var first_target_id: String = ""
+
+	target_selector.clear()
 
 	for fighter_variant in combat_manager.get_combatants():
 		var fighter: Dictionary = fighter_variant
@@ -848,22 +849,31 @@ func _refresh_target_options() -> void:
 			continue
 
 		var fighter_id: String = str(fighter["id"])
-		var display_text: String = str(fighter["name"]) + " (" + fighter_id + ")"
+		var display_text: String = (
+			str(fighter["name"]) + " (" + fighter_id + ")"
+		)
 
 		target_selector.add_item(display_text)
-		target_selector.set_item_metadata(target_selector.item_count - 1, fighter_id)
+		var item_index: int = target_selector.item_count - 1
+		target_selector.set_item_metadata(item_index, fighter_id)
 
 		if first_target_id.is_empty():
 			first_target_id = fighter_id
 
-	selected_enemy_id = first_target_id
+		if fighter_id == previous_target_id:
+			selected_index = item_index
 
-	if target_selector.item_count > 0:
+	if selected_index >= 0:
+		target_selector.select(selected_index)
+		selected_enemy_id = previous_target_id
+	elif target_selector.item_count > 0:
 		target_selector.select(0)
+		selected_enemy_id = first_target_id
+	else:
+		selected_enemy_id = ""
 
 	_update_target_indicator()
 	_update_target_info()
-
 
 func _on_target_selected(index: int) -> void:
 	if index < 0 or index >= target_selector.item_count:
