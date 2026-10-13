@@ -332,6 +332,7 @@ func get_combatant(combatant_id: String) -> Dictionary:
 func get_combatants() -> Array[Dictionary]:
 	return combatants
 
+
 func use_damage_ability(
 	attacker_id: String,
 	target_id: String,
@@ -372,8 +373,22 @@ func use_damage_ability(
 	if str(selected_ability.get("effect", "")) != "damage":
 		return {"success": false, "message": "Effetto non ancora supportato."}
 
+	if ability_type == "ultimate":
+		if not can_use_ultimate(attacker_id):
+			return {
+				"success": false,
+				"message": "Energia insufficiente per l'Ultimate."
+			}
+
 	if not spend_skill_points(point_cost):
 		return {"success": false, "message": "Impossibile spendere i punti."}
+
+	if ability_type == "ultimate":
+		if not spend_ultimate_energy(attacker_id):
+			return {
+				"success": false,
+				"message": "Impossibile consumare l'Energia."
+			}
 
 	var power: float = float(selected_ability.get("power", 1.0))
 	var base_damage: float = maxf(
@@ -402,4 +417,3 @@ func use_damage_ability(
 		"skill_points": get_skill_points(),
 		"energy": get_energy(attacker_id)
 	}
-
