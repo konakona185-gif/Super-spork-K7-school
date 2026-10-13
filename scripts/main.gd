@@ -42,6 +42,8 @@ var ally_info_labels: Dictionary = {}
 var ally_hp_labels: Dictionary = {}
 var ally_hp_bars: Dictionary = {}
 var attack_button: Button
+var skill_button: Button
+var skill_points_label: Label
 var restart_button: Button
 
 
@@ -361,11 +363,22 @@ func _build_ui() -> void:
 
 	_build_ally_info_panel(canvas)
 
+		skill_points_label = Label.new()
+	skill_points_label.name = "SkillPointsLabel"
+	skill_points_label.text = "Punti Abilità: 3 / 5"
+	control_contents.add_child(skill_points_label)
+
 	attack_button = Button.new()
-	attack_button.text = "Attacca"
+	attack_button.text = "Attacco base"
 	attack_button.custom_minimum_size = Vector2(0.0, 40.0)
 	attack_button.pressed.connect(_on_attack_pressed)
 	control_contents.add_child(attack_button)
+
+	skill_button = Button.new()
+	skill_button.text = "Skill"
+	skill_button.custom_minimum_size = Vector2(0.0, 40.0)
+	skill_button.pressed.connect(_on_skill_pressed)
+	control_contents.add_child(skill_button)
 
 	restart_button = Button.new()
 	restart_button.text = "Ricomincia battaglia"
@@ -848,6 +861,15 @@ func _on_target_selected(index: int) -> void:
 
 
 func _on_attack_pressed() -> void:
+	func _on_attack_pressed() -> void:
+	_use_hero_ability("basic")
+
+
+func _on_skill_pressed() -> void:
+	_use_hero_ability("skill")
+
+
+func _use_hero_ability(ability_type: String) -> void:
 	if battle_over or not waiting_for_hero_turn:
 		return
 
@@ -863,13 +885,31 @@ func _on_attack_pressed() -> void:
 	if not bool(hero["alive"]) or not bool(enemy["alive"]):
 		return
 
-	var damage: int = maxi(1, int(hero["atk"]) - int(enemy["def"]))
-	var new_hp: int = int(enemy["hp"]) - damage
+	var result: Dictionary = combat_manager.use_damage_ability(
+		active_hero_id,
+		selected_enemy_id,
+		ability_type
+	)
 
-	combat_manager.set_hp(selected_enemy_id, new_hp)
-	combat_manager.reset_action_bar(active_hero_id)
+	if not bool(result.get("success", false)):
+		turn_label.text = str(result.get("message", "Impossibile usare l'abilità."))
+		_update_ui()
+		return
 
-	turn_label.text = str(hero["name"]) + " attacca " + str(enemy["name"]) + " per " + str(damage) + " danni."
+	var ability_name: String = str(result.get("ability_name", "Abilità"))
+	var damage: int = int(result.get("damage", 0))
+	var target_name: String = str(result.get("target_name", "bersaglio"))
+
+	turn_label.text = (
+		str(hero["name"])
+		+ " usa "
+		+ ability_name
+		+ " su "
+		+ target_name
+		+ " e infligge "
+		+ str(damage)
+		+ " danni!"
+	)
 
 	waiting_for_hero_turn = false
 	active_hero_id = ""
@@ -990,8 +1030,28 @@ func _update_ui() -> void:
 		else:
 			turn_label.text = "Le barre d'azione stanno avanzando..."
 
-	if attack_button != null:
-		attack_button.disabled = battle_over or not waiting_for_hero_turn or selected_enemy_id.is_empty()
+		if attack_button != null:
+		attack_button.disabled = (
+			battle_over
+			or not waiting_for_hero_turn
+			or selected_enemy_id.is_empty()
+		)
+
+	if skill_button != null:
+		skill_button.disabled = (
+			battle_over
+			or not waiting_for_hero_turn
+			or selected_enemy_id.is_empty()
+			or not combat_manager.can_spend_skill_points(1)
+		)
+
+	if skill_points_label != null:
+		skill_points_label.text = (
+			"Punti Abilità: "
+			+ str(combat_manager.get_skill_points())
+			+ " / "
+			+ str(combat_manager.MAX_SKILL_POINTS)
+		)
 
 	_update_action_bars()
 	_update_turn_indicator()
