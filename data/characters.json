@@ -1,17 +1,17 @@
 {
   "party": [
     {
-      "id": "hero_001",
-      "name": "Avventuriero",
-      "rarity": "common",
-      "level": 1,
+      "id": "hero_mimi",
+      "name": "Mimi",
+      "element": "Hydro",
+      "rarity": "5_star",
       "role": "DPS",
       "scaling": ["ATK"],
       "stats": {
-        "hp": 100,
-        "atk": 16,
-        "def": 5,
-        "speed": 100
+        "hp": 9,
+        "atk": 1,
+        "def": 1,
+        "speed": 4
       }
     }
   ],
@@ -20,14 +20,13 @@
       "id": "enemy_001",
       "name": "Slime Cremisi",
       "rarity": "common",
-      "level": 1,
       "role": "DPS",
       "scaling": ["ATK"],
       "stats": {
-        "hp": 60,
-        "atk": 8,
-        "def": 2,
-        "speed": 50
+        "hp": 12,
+        "atk": 2,
+        "def": 0,
+        "speed": 3
       }
     }
   ]
