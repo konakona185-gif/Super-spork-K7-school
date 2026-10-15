@@ -93,6 +93,8 @@ func _process(delta: float) -> void:
 	if current_fighter.is_empty() or not bool(current_fighter["alive"]):
 		return
 
+	combat_manager.on_turn_start(fighter_id)
+
 	if str(current_fighter["team"]) == "hero":
 		active_hero_id = fighter_id
 		waiting_for_hero_turn = true
@@ -437,7 +439,8 @@ func _build_ally_info_panel(canvas: CanvasLayer) -> void:
 
 		var info_label: Label = Label.new()
 		info_label.name = "Info_" + character_id
-        info_label.text = str(character["name"]) + " | " + str(character.get("element", "Neutral")) + " | " + str(character.get("role", "DPS"))		info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		info_label.text = str(character["name"]) + " | " + str(character.get("element", "Neutral")) + " | " + str(character.get("role", "DPS"))
+		info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		card_contents.add_child(info_label)
 		ally_info_labels[character_id] = info_label
 
@@ -894,7 +897,7 @@ func _on_skill_pressed() -> void:
 
 
 func _on_ultimate_pressed() -> void:
-	if battle_over or selected_enemy_id.is_empty():
+	if battle_over:
 		return
 
 	var ready_hero_id: String = _get_ready_ultimate_hero_id()
@@ -903,12 +906,8 @@ func _on_ultimate_pressed() -> void:
 		return
 
 	var hero: Dictionary = combat_manager.get_combatant(ready_hero_id)
-	var enemy: Dictionary = combat_manager.get_combatant(selected_enemy_id)
 
-	if hero.is_empty() or enemy.is_empty():
-		return
-
-	if not bool(hero["alive"]) or not bool(enemy["alive"]):
+	if hero.is_empty() or not bool(hero["alive"]):
 		return
 
 	var result: Dictionary = combat_manager.use_damage_ability(
@@ -922,10 +921,14 @@ func _on_ultimate_pressed() -> void:
 		_update_ui()
 		return
 
-	var damage: int = int(result.get("damage", 0))
-	var target_name: String = str(result.get("target_name", "bersaglio"))
+	var effect_type: String = str(result.get("effect_type", "damage"))
 
-	turn_label.text = str(hero["name"]) + " scatena l'ULTIMATE su " + target_name + " per " + str(damage) + " danni!"
+	if effect_type == "cards_ultimate":
+		turn_label.text = str(hero["name"]) + " attiva Scala Reale! +" + str(result["bonus_atk"]) + " ATK per 2 turni!"
+	else:
+		var damage: int = int(result.get("damage", 0))
+		var target_name: String = str(result.get("target_name", "bersaglio"))
+		turn_label.text = str(hero["name"]) + " scatena l'ULTIMATE su " + target_name + " per " + str(damage) + " danni!"
 
 	_check_battle_end()
 	_update_fighter_visuals()
@@ -952,16 +955,12 @@ func _use_hero_ability(ability_type: String) -> void:
 	if battle_over or not waiting_for_hero_turn:
 		return
 
-	if active_hero_id.is_empty() or selected_enemy_id.is_empty():
+	if active_hero_id.is_empty():
 		return
 
 	var hero: Dictionary = combat_manager.get_combatant(active_hero_id)
-	var enemy: Dictionary = combat_manager.get_combatant(selected_enemy_id)
 
-	if hero.is_empty() or enemy.is_empty():
-		return
-
-	if not bool(hero["alive"]) or not bool(enemy["alive"]):
+	if hero.is_empty() or not bool(hero["alive"]):
 		return
 
 	var result: Dictionary = combat_manager.use_damage_ability(
@@ -975,20 +974,17 @@ func _use_hero_ability(ability_type: String) -> void:
 		_update_ui()
 		return
 
-	var ability_name: String = str(result.get("ability_name", "Abilità"))
-	var damage: int = int(result.get("damage", 0))
-	var target_name: String = str(result.get("target_name", "bersaglio"))
+	var effect_type: String = str(result.get("effect_type", "damage"))
 
-	turn_label.text = (
-		str(hero["name"])
-		+ " usa "
-		+ ability_name
-		+ " su "
-		+ target_name
-		+ " e infligge "
-		+ str(damage)
-		+ " danni!"
-	)
+	if effect_type == "cards_shuffle":
+		turn_label.text = str(hero["name"]) + " usa Rimescola! Consumate " + str(result["consumed"]) + " carte (recupera " + str(result["pending"]) + " al prossimo turno)."
+	elif effect_type == "cards_ultimate":
+		turn_label.text = str(hero["name"]) + " attiva Scala Reale! +" + str(result["bonus_atk"]) + " ATK per 2 turni!"
+	else:
+		var ability_name: String = str(result.get("ability_name", "Abilità"))
+		var damage: int = int(result.get("damage", 0))
+		var target_name: String = str(result.get("target_name", "bersaglio"))
+		turn_label.text = str(hero["name"]) + " usa " + ability_name + " su " + target_name + " e infligge " + str(damage) + " danni!"
 
 	waiting_for_hero_turn = false
 	active_hero_id = ""
@@ -1101,7 +1097,12 @@ func _update_ui() -> void:
 		var fighter: Dictionary = fighter_variant
 		var team_label: String = "Alleato" if str(fighter["team"]) == "hero" else "Nemico"
 		var hp_text: String = str(fighter["hp"]) + "/" + str(fighter["max_hp"])
-		var fighter_line: String = team_label + " | " + str(fighter["name"]) + " | HP: " + hp_text
+		var extra_info: String = ""
+
+		if str(fighter["id"]) == "hero_mimi":
+			extra_info = " | Carte: " + str(combat_manager.get_cards(str(fighter["id"]))) + "/7 (ATK: " + str(combat_manager.get_effective_atk(str(fighter["id"]))) + ")"
+
+		var fighter_line: String = team_label + " | " + str(fighter["name"]) + " | HP: " + hp_text + extra_info
 
 		if not bool(fighter["alive"]):
 			fighter_line += " | SCONFITTO"
@@ -1112,7 +1113,7 @@ func _update_ui() -> void:
 
 	if turn_label != null and not battle_over:
 		if waiting_for_hero_turn:
-			turn_label.text = "Il tuo turno: scegli un bersaglio e attacca."
+			turn_label.text = "Il tuo turno: scegli un'azione."
 		elif waiting_for_enemy_turn:
 			turn_label.text = "Turno nemico..."
 		else:
@@ -1129,8 +1130,6 @@ func _update_ui() -> void:
 		skill_button.disabled = (
 			battle_over
 			or not waiting_for_hero_turn
-			or selected_enemy_id.is_empty()
-			or not combat_manager.can_spend_skill_points(1)
 		)
 
 	if skill_points_label != null:
@@ -1161,7 +1160,6 @@ func _update_ui() -> void:
 		ultimate_button.disabled = (
 			battle_over
 			or ready_hero.is_empty()
-			or selected_enemy_id.is_empty()
 		)
 
 	_update_action_bars()
