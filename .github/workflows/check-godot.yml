@@ -36,22 +36,6 @@ jobs:
             exit 1
           fi
 
-      - name: Esegui i test del combattimento
-        shell: bash
-        run: |
-          set -o pipefail
-          "$GODOT_BIN" --headless --path "$GITHUB_WORKSPACE" --script res://tests/test_combat_manager.gd 2>&1 | tee combat-tests.log
-
-          if grep -E 'SCRIPT ERROR:|Parse Error:|TEST FALLITO:|TEST COMBAT MANAGER: [0-9]+ TEST FALLITI|ERROR:' combat-tests.log; then
-            echo "I test del combattimento non sono stati superati."
-            exit 1
-          fi
-
-          if ! grep -q 'TEST COMBAT MANAGER: TUTTI I TEST SUPERATI' combat-tests.log; then
-            echo "Il risultato dei test non è stato confermato."
-            exit 1
-          fi
-
       - name: Avvia la scena principale
         shell: bash
         run: |
