@@ -13,6 +13,20 @@
         "def": 1,
         "speed": 4
       }
+    },
+    {
+      "id": "hero_parunan",
+      "name": "Parunan",
+      "element": "Psyche",
+      "rarity": "5_star",
+      "role": "Support",
+      "scaling": ["ATK"],
+      "stats": {
+        "hp": 10,
+        "atk": 1,
+        "def": 2,
+        "speed": 7
+      }
     }
   ],
   "enemies": [
@@ -23,7 +37,7 @@
       "role": "DPS",
       "scaling": ["ATK"],
       "stats": {
-        "hp": 12,
+        "hp": 20,
         "atk": 2,
         "def": 0,
         "speed": 3
