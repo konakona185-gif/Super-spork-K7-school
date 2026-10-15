@@ -40,6 +40,67 @@
       "effect": "cards_ultimate",
       "energy_cost": 100,
       "energy_gain": 0
+    },
+    {
+      "id": "parunan_basic",
+      "character_id": "hero_parunan",
+      "name": "Tassa a Sorpresa",
+      "type": "basic",
+      "description": "Infligge a un singolo nemico danni Psyche pari al 100% dell'ATK.",
+      "target": "single_enemy",
+      "effect": "damage",
+      "power": 1.0,
+      "energy_gain": 20
+    },
+    {
+      "id": "parunan_passive",
+      "character_id": "hero_parunan",
+      "name": "Clausola di Tutela",
+      "type": "passive",
+      "description": "Se ha la DEF base più alta, i buff della Skill si applicano anche a sé. Se sola, durata ed effetto raddoppiano.",
+      "target": "self",
+      "effect": "parunan_passive"
+    },
+    {
+      "id": "parunan_skill_atk",
+      "character_id": "hero_parunan",
+      "name": "Iniezione di Capitale",
+      "type": "skill",
+      "description": "+3 ATK per 1 turno all'alleato con l'ATK più alto.",
+      "target": "ally_highest_atk",
+      "effect": "buff_atk",
+      "energy_gain": 30
+    },
+    {
+      "id": "parunan_skill_def",
+      "character_id": "hero_parunan",
+      "name": "Polizza Assicurativa",
+      "type": "skill",
+      "description": "Riduce di 1 punto tutti i danni subiti per 1 turno all'alleato con meno DEF.",
+      "target": "ally_lowest_def",
+      "effect": "buff_dmg_reduction",
+      "energy_gain": 30
+    },
+    {
+      "id": "parunan_skill_heal",
+      "character_id": "hero_parunan",
+      "name": "Fondo di Soccorso",
+      "type": "skill",
+      "description": "+3 HP massimi e cura del 30% all'alleato con meno HP per 1 turno.",
+      "target": "ally_lowest_hp",
+      "effect": "buff_max_hp_and_heal",
+      "energy_gain": 30
+    },
+    {
+      "id": "parunan_ultimate",
+      "character_id": "hero_parunan",
+      "name": "Pacchetto All-Inclusive",
+      "type": "ultimate",
+      "description": "Applica tutti e 3 gli effetti a un altro alleato. Se sola, cura sé stessa del 100%.",
+      "target": "single_ally",
+      "effect": "parunan_ultimate",
+      "energy_cost": 100,
+      "energy_gain": 0
     }
   ]
 }
