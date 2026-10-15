@@ -520,7 +520,8 @@ func use_damage_ability(
 	if ability_type == "basic":
 		restore_skill_points(1)
 
-	reset_action_bar(attacker_id)
+	if ability_type != "ultimate":
+		reset_action_bar(attacker_id)
 
 	return {
 		"success": true,
