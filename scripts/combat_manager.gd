@@ -121,28 +121,35 @@ func _load_ability_data() -> void:
 
 func _add_combatant(data: Dictionary, team: String) -> void:
 	var stats: Dictionary = data["stats"]
-	var is_mimi: bool = str(data["id"]) == "hero_mimi"
+	var f_id: String = str(data["id"])
 
 	combatants.append({
-		"id": str(data["id"]),
+		"id": f_id,
 		"name": str(data["name"]),
 		"team": team,
 		"role": str(data.get("role", "DPS")),
 		"scaling": data.get("scaling", ["ATK"]),
 		"speed": maxf(1.0, float(stats.get("speed", 1))),
 		"action_bar": 0.0,
+		"base_hp": int(stats["hp"]),
 		"hp": int(stats["hp"]),
 		"max_hp": int(stats["hp"]),
+		"base_atk": int(stats["atk"]),
 		"atk": int(stats["atk"]),
+		"base_def": int(stats.get("def", 0)),
 		"def": int(stats.get("def", 0)),
 		"energy": 0,
 		"alive": true,
-		"cards": 4 if is_mimi else 0,
+		"cards": 4 if f_id == "hero_mimi" else 0,
 		"turns_taken": 0,
 		"pending_cards": 0,
 		"consumed_cards_for_ult": 0,
 		"atk_buff_amount": 0,
-		"atk_buff_duration": 0
+		"atk_buff_duration": 0,
+		"dmg_reduction_amount": 0,
+		"dmg_reduction_duration": 0,
+		"max_hp_buff_amount": 0,
+		"max_hp_buff_duration": 0
 	})
 
 
@@ -155,6 +162,18 @@ func on_turn_start(combatant_id: String) -> void:
 		fighter["atk_buff_duration"] -= 1
 		if fighter["atk_buff_duration"] == 0:
 			fighter["atk_buff_amount"] = 0
+
+	if fighter.get("dmg_reduction_duration", 0) > 0:
+		fighter["dmg_reduction_duration"] -= 1
+		if fighter["dmg_reduction_duration"] == 0:
+			fighter["dmg_reduction_amount"] = 0
+
+	if fighter.get("max_hp_buff_duration", 0) > 0:
+		fighter["max_hp_buff_duration"] -= 1
+		if fighter["max_hp_buff_duration"] == 0:
+			fighter["max_hp"] = int(fighter["base_hp"])
+			fighter["max_hp_buff_amount"] = 0
+			fighter["hp"] = mini(int(fighter["hp"]), int(fighter["max_hp"]))
 
 	if str(fighter["id"]) == "hero_mimi":
 		var pending: int = int(fighter.get("pending_cards", 0))
@@ -172,6 +191,13 @@ func get_effective_atk(combatant_id: String) -> int:
 	if fighter.is_empty():
 		return 0
 	return int(fighter["atk"]) + int(fighter.get("atk_buff_amount", 0))
+
+
+func get_effective_def(combatant_id: String) -> int:
+	var fighter: Dictionary = get_combatant(combatant_id)
+	if fighter.is_empty():
+		return 0
+	return int(fighter["def"])
 
 
 func get_cards(combatant_id: String) -> int:
@@ -236,6 +262,13 @@ func set_hp(combatant_id: String, new_hp: int) -> void:
 			return
 
 
+func heal_hp(combatant_id: String, amount: int) -> void:
+	for fighter in combatants:
+		if str(fighter["id"]) == combatant_id and bool(fighter["alive"]):
+			fighter["hp"] = mini(int(fighter["max_hp"]), int(fighter["hp"]) + amount)
+			return
+
+
 func get_combatant(combatant_id: String) -> Dictionary:
 	for fighter in combatants:
 		if str(fighter["id"]) == combatant_id:
@@ -246,6 +279,14 @@ func get_combatant(combatant_id: String) -> Dictionary:
 
 func get_combatants() -> Array[Dictionary]:
 	return combatants
+
+
+func get_living_allies() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for f in combatants:
+		if str(f["team"]) == "hero" and bool(f["alive"]):
+			result.append(f)
+	return result
 
 
 func get_abilities_for_character(character_id: String) -> Array[Dictionary]:
@@ -316,48 +357,58 @@ func spend_ultimate_energy(combatant_id: String) -> bool:
 	return false
 
 
-func _get_passive_damage_multiplier(attacker: Dictionary) -> float:
-	var multiplier: float = 1.0
-	var character_id: String = str(attacker["id"])
-	var current_hp: float = float(attacker["hp"])
-	var max_hp: float = maxf(1.0, float(attacker["max_hp"]))
-	var hp_ratio: float = current_hp / max_hp
-
-	for ability in get_abilities_for_character(character_id):
-		if str(ability.get("type", "")) != "passive":
-			continue
-
-		var effect: String = str(ability.get("effect", ""))
-		var condition: String = str(ability.get("condition", ""))
-		var power: float = float(ability.get("power", 0.0))
-
-		if effect == "conditional_damage_bonus" and condition == "hp_below_or_equal_50_percent":
-			if hp_ratio <= 0.5:
-				multiplier *= 1.0 + power
-
-	return multiplier
+func _check_parunan_passive_def(parunan: Dictionary) -> bool:
+	var parunan_def: int = int(parunan["base_def"])
+	for ally in get_living_allies():
+		if str(ally["id"]) != str(parunan["id"]):
+			if int(ally["base_def"]) >= parunan_def:
+				return false
+	return true
 
 
-func use_damage_ability(attacker_id: String, target_id: String, ability_type: String) -> Dictionary:
+func _apply_atk_buff(target_id: String, amount: int, duration: int) -> void:
+	for f in combatants:
+		if str(f["id"]) == target_id:
+			f["atk_buff_amount"] = amount
+			f["atk_buff_duration"] = duration
+			return
+
+
+func _apply_dmg_reduction_buff(target_id: String, amount: int, duration: int) -> void:
+	for f in combatants:
+		if str(f["id"]) == target_id:
+			f["dmg_reduction_amount"] = amount
+			f["dmg_reduction_duration"] = duration
+			return
+
+
+func _apply_max_hp_buff_and_heal(target_id: String, hp_bonus: int, heal_ratio: float, duration: int) -> void:
+	for f in combatants:
+		if str(f["id"]) == target_id:
+			f["max_hp"] = int(f["base_hp"]) + hp_bonus
+			f["max_hp_buff_amount"] = hp_bonus
+			f["max_hp_buff_duration"] = duration
+			var heal_amount: int = maxi(1, roundi(float(f["max_hp"]) * heal_ratio))
+			heal_hp(target_id, heal_amount)
+			return
+
+
+func use_ability_by_id(attacker_id: String, target_id: String, ability_id: String) -> Dictionary:
 	var attacker: Dictionary = get_combatant(attacker_id)
-	var target: Dictionary = get_combatant(target_id)
-
-	if attacker.is_empty():
-		return {"success": false, "message": "Attaccante non trovato."}
-
-	if not bool(attacker["alive"]):
-		return {"success": false, "message": "Combattente sconfitto."}
+	if attacker.is_empty() or not bool(attacker["alive"]):
+		return {"success": false, "message": "Combattente non valido."}
 
 	var selected_ability: Dictionary = {}
-	for ability in get_abilities_for_character(attacker_id):
-		if str(ability["type"]) == ability_type:
-			selected_ability = ability
+	for ab in abilities:
+		if str(ab.get("id", "")) == ability_id:
+			selected_ability = ab
 			break
 
 	if selected_ability.is_empty():
 		return {"success": false, "message": "Abilità non trovata."}
 
 	var effect: String = str(selected_ability.get("effect", "damage"))
+	var ability_type: String = str(selected_ability.get("type", "basic"))
 
 	if effect == "cards_shuffle":
 		var current_cards: int = int(attacker.get("cards", 0))
@@ -382,8 +433,7 @@ func use_damage_ability(attacker_id: String, target_id: String, ability_type: St
 
 		spend_ultimate_energy(attacker_id)
 		var bonus: int = int(attacker.get("consumed_cards_for_ult", 0))
-		attacker["atk_buff_amount"] = bonus
-		attacker["atk_buff_duration"] = 2
+		_apply_atk_buff(attacker_id, bonus, 2)
 
 		return {
 			"success": true,
@@ -392,6 +442,132 @@ func use_damage_ability(attacker_id: String, target_id: String, ability_type: St
 			"bonus_atk": bonus
 		}
 
+	if effect == "buff_atk":
+		var living_allies: Array[Dictionary] = get_living_allies()
+		var is_solo: bool = living_allies.size() == 1
+		var applies_to_self: bool = _check_parunan_passive_def(attacker)
+
+		var best_ally: Dictionary = living_allies[0]
+		for ally in living_allies:
+			if get_effective_atk(str(ally["id"])) > get_effective_atk(str(best_ally["id"])):
+				best_ally = ally
+
+		var atk_bonus: int = 6 if is_solo else 3
+		var duration: int = 2 if is_solo else 1
+
+		_apply_atk_buff(str(best_ally["id"]), atk_bonus, duration)
+		if applies_to_self and not is_solo and str(best_ally["id"]) != attacker_id:
+			_apply_atk_buff(attacker_id, atk_bonus, duration)
+
+		add_energy(attacker_id, int(selected_ability.get("energy_gain", 0)))
+		reset_action_bar(attacker_id)
+
+		return {
+			"success": true,
+			"ability_name": str(selected_ability["name"]),
+			"effect_type": "buff_atk",
+			"target_name": str(best_ally["name"]),
+			"amount": atk_bonus,
+			"duration": duration,
+			"applied_to_self": applies_to_self and not is_solo
+		}
+
+	if effect == "buff_dmg_reduction":
+		var living_allies: Array[Dictionary] = get_living_allies()
+		var is_solo: bool = living_allies.size() == 1
+		var applies_to_self: bool = _check_parunan_passive_def(attacker)
+
+		var best_ally: Dictionary = living_allies[0]
+		for ally in living_allies:
+			if get_effective_def(str(ally["id"])) < get_effective_def(str(best_ally["id"])):
+				best_ally = ally
+
+		var reduction: int = 2 if is_solo else 1
+		var duration: int = 2 if is_solo else 1
+
+		_apply_dmg_reduction_buff(str(best_ally["id"]), reduction, duration)
+		if applies_to_self and not is_solo and str(best_ally["id"]) != attacker_id:
+			_apply_dmg_reduction_buff(attacker_id, reduction, duration)
+
+		add_energy(attacker_id, int(selected_ability.get("energy_gain", 0)))
+		reset_action_bar(attacker_id)
+
+		return {
+			"success": true,
+			"ability_name": str(selected_ability["name"]),
+			"effect_type": "buff_dmg_reduction",
+			"target_name": str(best_ally["name"]),
+			"amount": reduction,
+			"duration": duration,
+			"applied_to_self": applies_to_self and not is_solo
+		}
+
+	if effect == "buff_max_hp_and_heal":
+		var living_allies: Array[Dictionary] = get_living_allies()
+		var is_solo: bool = living_allies.size() == 1
+		var applies_to_self: bool = _check_parunan_passive_def(attacker)
+
+		var best_ally: Dictionary = living_allies[0]
+		for ally in living_allies:
+			if int(ally["hp"]) < int(best_ally["hp"]):
+				best_ally = ally
+
+		var hp_bonus: int = 6 if is_solo else 3
+		var heal_ratio: float = 0.6 if is_solo else 0.3
+		var duration: int = 2 if is_solo else 1
+
+		_apply_max_hp_buff_and_heal(str(best_ally["id"]), hp_bonus, heal_ratio, duration)
+		if applies_to_self and not is_solo and str(best_ally["id"]) != attacker_id:
+			_apply_max_hp_buff_and_heal(attacker_id, hp_bonus, heal_ratio, duration)
+
+		add_energy(attacker_id, int(selected_ability.get("energy_gain", 0)))
+		reset_action_bar(attacker_id)
+
+		return {
+			"success": true,
+			"ability_name": str(selected_ability["name"]),
+			"effect_type": "buff_max_hp_and_heal",
+			"target_name": str(best_ally["name"]),
+			"amount": hp_bonus,
+			"duration": duration,
+			"applied_to_self": applies_to_self and not is_solo
+		}
+
+	if effect == "parunan_ultimate":
+		if not can_use_ultimate(attacker_id):
+			return {"success": false, "message": "Energia insufficiente per l'Ultimate."}
+
+		spend_ultimate_energy(attacker_id)
+		var living_allies: Array[Dictionary] = get_living_allies()
+
+		if living_allies.size() == 1:
+			heal_hp(attacker_id, int(attacker["max_hp"]))
+			return {
+				"success": true,
+				"ability_name": str(selected_ability["name"]),
+				"effect_type": "parunan_ultimate_solo",
+				"target_name": str(attacker["name"])
+			}
+
+		var other_target_id: String = ""
+		for ally in living_allies:
+			if str(ally["id"]) != attacker_id:
+				other_target_id = str(ally["id"])
+				break
+
+		_apply_atk_buff(other_target_id, 3, 1)
+		_apply_dmg_reduction_buff(other_target_id, 1, 1)
+		_apply_max_hp_buff_and_heal(other_target_id, 3, 0.3, 1)
+
+		var other_combatant = get_combatant(other_target_id)
+		return {
+			"success": true,
+			"ability_name": str(selected_ability["name"]),
+			"effect_type": "parunan_ultimate",
+			"target_name": str(other_combatant.get("name", "Alleato"))
+		}
+
+	var target: Dictionary = get_combatant(target_id)
 	if target.is_empty() or not bool(target["alive"]):
 		return {"success": false, "message": "Bersaglio non valido."}
 
@@ -400,9 +576,11 @@ func use_damage_ability(attacker_id: String, target_id: String, ability_type: St
 
 	var power: float = float(selected_ability.get("power", 1.0))
 	var effective_atk: int = get_effective_atk(attacker_id)
-	var base_damage: float = maxf(1.0, float(effective_atk) - float(target["def"]))
-	var passive_multiplier: float = _get_passive_damage_multiplier(attacker)
-	var damage: int = maxi(1, roundi(base_damage * power * passive_multiplier))
+	var raw_damage: float = maxf(1.0, float(effective_atk) - float(target["def"]))
+	var damage: int = maxi(1, roundi(raw_damage * power))
+
+	var reduction: int = int(target.get("dmg_reduction_amount", 0))
+	damage = maxi(1, damage - reduction)
 
 	set_hp(target_id, int(target["hp"]) - damage)
 
