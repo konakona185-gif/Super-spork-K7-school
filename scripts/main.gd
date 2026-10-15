@@ -895,7 +895,58 @@ func _on_skill_pressed() -> void:
 
 
 func _on_ultimate_pressed() -> void:
-	_use_hero_ability("ultimate")
+	if battle_over or selected_enemy_id.is_empty():
+		return
+
+	var ready_hero_id: String = _get_ready_ultimate_hero_id()
+
+	if ready_hero_id.is_empty():
+		return
+
+	var hero: Dictionary = combat_manager.get_combatant(ready_hero_id)
+	var enemy: Dictionary = combat_manager.get_combatant(selected_enemy_id)
+
+	if hero.is_empty() or enemy.is_empty():
+		return
+
+	if not bool(hero["alive"]) or not bool(enemy["alive"]):
+		return
+
+	var result: Dictionary = combat_manager.use_damage_ability(
+		ready_hero_id,
+		selected_enemy_id,
+		"ultimate"
+	)
+
+	if not bool(result.get("success", false)):
+		turn_label.text = str(result.get("message", "Impossibile usare l'Ultimate."))
+		_update_ui()
+		return
+
+	var damage: int = int(result.get("damage", 0))
+	var target_name: String = str(result.get("target_name", "bersaglio"))
+
+	turn_label.text = str(hero["name"]) + " scatena l'ULTIMATE su " + target_name + " per " + str(damage) + " danni!"
+
+	_check_battle_end()
+	_update_fighter_visuals()
+	_refresh_target_options()
+	_update_ui()
+
+
+func _get_ready_ultimate_hero_id() -> String:
+	if not active_hero_id.is_empty() and combat_manager.can_use_ultimate(active_hero_id):
+		return active_hero_id
+
+	for fighter_variant in combat_manager.get_combatants():
+		var fighter: Dictionary = fighter_variant
+		var fighter_id: String = str(fighter["id"])
+
+		if str(fighter["team"]) == "hero" and bool(fighter["alive"]):
+			if combat_manager.can_use_ultimate(fighter_id):
+				return fighter_id
+
+	return ""
 
 
 func _use_hero_ability(ability_type: String) -> void:
@@ -1091,40 +1142,27 @@ func _update_ui() -> void:
 			+ str(combat_manager.MAX_SKILL_POINTS)
 		)
 
+	var display_hero_id: String = active_hero_id
+	if display_hero_id.is_empty():
+		for fighter_variant in combat_manager.get_combatants():
+			var fighter: Dictionary = fighter_variant
+			if str(fighter["team"]) == "hero" and bool(fighter["alive"]):
+				display_hero_id = str(fighter["id"])
+				break
+
 	if energy_label != null:
-		var energy_hero_id: String = active_hero_id
-
-		if energy_hero_id.is_empty():
-			for fighter_variant in combat_manager.get_combatants():
-				var fighter: Dictionary = fighter_variant
-
-				if (
-					str(fighter["team"]) == "hero"
-					and bool(fighter["alive"])
-				):
-					energy_hero_id = str(fighter["id"])
-					break
-
-		if energy_hero_id.is_empty():
+		if display_hero_id.is_empty():
 			energy_label.text = "Energia: -- / 100"
 		else:
-			var current_energy: int = combat_manager.get_energy(
-				energy_hero_id
-			)
-			energy_label.text = (
-				"Energia: "
-				+ str(current_energy)
-				+ " / "
-				+ str(combat_manager.MAX_ENERGY)
-			)
+			var current_energy: int = combat_manager.get_energy(display_hero_id)
+			energy_label.text = "Energia: " + str(current_energy) + " / " + str(combat_manager.MAX_ENERGY)
 
 	if ultimate_button != null:
+		var ready_hero: String = _get_ready_ultimate_hero_id()
 		ultimate_button.disabled = (
 			battle_over
-			or not waiting_for_hero_turn
-			or active_hero_id.is_empty()
+			or ready_hero.is_empty()
 			or selected_enemy_id.is_empty()
-			or not combat_manager.can_use_ultimate(active_hero_id)
 		)
 
 	_update_action_bars()
