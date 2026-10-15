@@ -1,50 +1,43 @@
-
 {
   "abilities": [
     {
-      "id": "hero_001_basic",
-      "character_id": "hero_001",
-      "name": "Attacco base",
+      "id": "mimi_basic",
+      "character_id": "hero_mimi",
+      "name": "Carta Tagliente",
       "type": "basic",
-      "description": "Attacca un nemico con un colpo normale.",
+      "description": "Infligge danni Hydro pari al 100% dell'ATK a un nemico.",
       "target": "single_enemy",
       "effect": "damage",
       "power": 1.0,
-      "skill_point_cost": 0,
       "energy_gain": 20
     },
     {
-      "id": "hero_001_skill",
-      "character_id": "hero_001",
-      "name": "Colpo potente",
+      "id": "mimi_passive",
+      "character_id": "hero_mimi",
+      "name": "Trucco della Manica",
+      "type": "passive",
+      "description": "Inizia con 4 carte. Ottiene 1 carta ogni 2 turni (max 7).",
+      "target": "self",
+      "effect": "cards_passive"
+    },
+    {
+      "id": "mimi_skill",
+      "character_id": "hero_mimi",
+      "name": "Rimescola",
       "type": "skill",
-      "description": "Infligge danni maggiori a un nemico.",
-      "target": "single_enemy",
-      "effect": "damage",
-      "power": 1.8,
-      "skill_point_cost": 1,
+      "description": "Azzera le carte e ne recupera la metà + 1 al turno dopo. Prepara l'Ultimate.",
+      "target": "self",
+      "effect": "cards_shuffle",
       "energy_gain": 30
     },
     {
-      "id": "hero_001_passive",
-      "character_id": "hero_001",
-      "name": "Determinazione",
-      "type": "passive",
-      "description": "Aumenta i danni inflitti quando gli HP sono pari o inferiori al 50%.",
-      "target": "self",
-      "effect": "conditional_damage_bonus",
-      "power": 0.25,
-      "condition": "hp_below_or_equal_50_percent"
-    },
-    {
-      "id": "hero_001_ultimate",
-      "character_id": "hero_001",
-      "name": "Colpo definitivo",
+      "id": "mimi_ultimate",
+      "character_id": "hero_mimi",
+      "name": "Scala Reale",
       "type": "ultimate",
-      "description": "Scatena un potente attacco contro un nemico.",
-      "target": "single_enemy",
-      "effect": "damage",
-      "power": 3.0,
+      "description": "Ottiene +1 ATK per 2 turni per ogni carta consumata dall'ultima Skill.",
+      "target": "self",
+      "effect": "cards_ultimate",
       "energy_cost": 100,
       "energy_gain": 0
     }
