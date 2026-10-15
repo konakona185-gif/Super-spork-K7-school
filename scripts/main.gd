@@ -875,6 +875,7 @@ func _refresh_target_options() -> void:
 	_update_target_indicator()
 	_update_target_info()
 
+
 func _on_target_selected(index: int) -> void:
 	if index < 0 or index >= target_selector.item_count:
 		return
@@ -970,20 +971,29 @@ func _perform_enemy_turn() -> void:
 		_update_turn_indicator()
 		return
 
-	var target: Dictionary = {}
-
+	var living_heroes: Array[Dictionary] = []
 	for fighter_variant in combat_manager.get_combatants():
 		var fighter: Dictionary = fighter_variant
-
 		if str(fighter["team"]) == "hero" and bool(fighter["alive"]):
-			target = fighter
-			break
+			living_heroes.append(fighter)
 
-	if target.is_empty():
+	if living_heroes.is_empty():
 		waiting_for_enemy_turn = false
 		_check_battle_end()
 		_update_turn_indicator()
 		return
+
+	var target: Dictionary = {}
+
+	if randf() < 0.7:
+		var lowest_hp: int = 9999999
+		for hero in living_heroes:
+			var current_hp: int = int(hero["hp"])
+			if current_hp < lowest_hp:
+				lowest_hp = current_hp
+				target = hero
+	else:
+		target = living_heroes.pick_random()
 
 	var damage: int = maxi(1, int(enemy["atk"]) - int(target["def"]))
 	var target_id: String = str(target["id"])
