@@ -437,8 +437,7 @@ func _build_ally_info_panel(canvas: CanvasLayer) -> void:
 
 		var info_label: Label = Label.new()
 		info_label.name = "Info_" + character_id
-		info_label.text = str(character["name"]) + " | " + str(character.get("role", "DPS")) + " | Lv. " + str(character.get("level", 1))
-		info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        info_label.text = str(character["name"]) + " | " + str(character.get("element", "Neutral")) + " | " + str(character.get("role", "DPS"))		info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		card_contents.add_child(info_label)
 		ally_info_labels[character_id] = info_label
 
