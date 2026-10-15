@@ -144,6 +144,32 @@ func _build_arena() -> void:
 	environment.environment = env_data
 	add_child(environment)
 
+	var hero_marker: MeshInstance3D = MeshInstance3D.new()
+	hero_marker.name = "HeroSideMarker"
+
+	var hero_marker_mesh: BoxMesh = BoxMesh.new()
+	hero_marker_mesh.size = Vector3(0.08, 0.02, 5.0)
+	hero_marker.mesh = hero_marker_mesh
+	hero_marker.position = Vector3(-1.4, 0.02, 0.0)
+
+	var hero_marker_material: StandardMaterial3D = StandardMaterial3D.new()
+	hero_marker_material.albedo_color = Color(0.15, 0.35, 0.9)
+	hero_marker.material_override = hero_marker_material
+	add_child(hero_marker)
+
+	var enemy_marker: MeshInstance3D = MeshInstance3D.new()
+	enemy_marker.name = "EnemySideMarker"
+
+	var enemy_marker_mesh: BoxMesh = BoxMesh.new()
+	enemy_marker_mesh.size = Vector3(0.08, 0.02, 5.0)
+	enemy_marker.mesh = enemy_marker_mesh
+	enemy_marker.position = Vector3(1.4, 0.02, 0.0)
+
+	var enemy_marker_material: StandardMaterial3D = StandardMaterial3D.new()
+	enemy_marker_material.albedo_color = Color(0.8, 0.18, 0.18)
+	enemy_marker.material_override = enemy_marker_material
+	add_child(enemy_marker)
+
 
 func _build_ui() -> void:
 	var canvas: CanvasLayer = CanvasLayer.new()
@@ -674,7 +700,7 @@ func _update_ui() -> void:
 		ultimate_button.disabled = battle_over or ready_h.is_empty()
 
 	_update_action_bars()
-	_update_turn_indicators()
+	_update_turn_indicator()
 	_update_target_indicator()
 	_update_target_info()
 	_update_ally_info()
@@ -702,7 +728,7 @@ func _update_action_bars() -> void:
 	enemy_bar.value = float(enemy.get("action_bar", 0.0))
 
 
-func _update_turn_indicators() -> void:
+func _update_turn_indicator() -> void:
 	for f_id in turn_indicators.keys():
 		var show: bool = false
 		if waiting_for_hero_turn and f_id == active_hero_id:
@@ -774,7 +800,7 @@ func _update_fighter_visuals() -> void:
 
 		_update_fighter_hp_bar(f_id, fighter)
 
-	_update_turn_indicators()
+	_update_turn_indicator()
 	_update_target_indicator()
 	_update_target_info()
 	_update_ally_info()
